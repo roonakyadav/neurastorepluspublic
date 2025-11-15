@@ -64,36 +64,36 @@ export default function IntelligenceSidebar({
     const getRecommendationIcon = () => {
         switch (analysis.storageRecommendation) {
             case 'SQL':
-                return <Database className="w-4 h-4 text-green-600" />;
+                return <Database className="w-4 h-4 text-green-400" />;
             case 'NoSQL':
-                return <FileText className="w-4 h-4 text-blue-600" />;
+                return <FileText className="w-4 h-4 text-blue-400" />;
             default:
-                return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
+                return <AlertTriangle className="w-4 h-4 text-yellow-400" />;
         }
     };
 
     const getRecommendationColor = () => {
         switch (analysis.storageRecommendation) {
             case 'SQL':
-                return 'bg-green-100 text-green-800 border-green-200';
+                return 'bg-green-900 text-green-200 border-green-700';
             case 'NoSQL':
-                return 'bg-blue-100 text-blue-800 border-blue-200';
+                return 'bg-blue-900 text-blue-200 border-blue-700';
             default:
-                return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+                return 'bg-yellow-900 text-yellow-200 border-yellow-700';
         }
     };
 
     return (
-        <div className={`bg-gray-50 border-l border-gray-200 transition-all duration-300 ${isExpanded ? 'w-80' : 'w-12'}`}>
-            <div className="p-3 border-b border-gray-200 flex items-center justify-between">
-                <h3 className={`font-semibold text-sm ${isExpanded ? 'block' : 'hidden'}`}>
+        <div className={`bg-[#0B1220] border-l border-gray-700 transition-all duration-300 ${isExpanded ? 'w-[350px]' : 'w-12'} flex-shrink-0`}>
+            <div className="p-3 border-b border-gray-700 flex items-center justify-between">
+                <h3 className={`font-semibold text-sm text-gray-200 ${isExpanded ? 'block' : 'hidden'}`}>
                     Intelligence
                 </h3>
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="h-6 w-6 p-0"
+                    className="h-6 w-6 p-0 text-gray-400 hover:text-gray-200"
                 >
                     {isExpanded ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                 </Button>
@@ -102,18 +102,18 @@ export default function IntelligenceSidebar({
             {isExpanded && (
                 <div className="p-4 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
                     {/* Storage Recommendation */}
-                    <Card>
-                        <CardHeader className="pb-2">
+                    <Card className="rounded-lg py-3 px-3">
+                        <CardHeader className="pb-2 px-0">
                             <CardTitle className="text-sm flex items-center gap-2">
                                 {getRecommendationIcon()}
                                 Storage Recommendation
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-0">
+                        <CardContent className="pt-0 px-0">
                             <Badge className={`text-xs font-medium ${getRecommendationColor()}`}>
                                 {analysis.storageRecommendation}
                             </Badge>
-                            <div className="mt-2 text-xs text-gray-600">
+                            <div className="mt-2 text-xs text-gray-400">
                                 {analysis.storageRecommendation === 'SQL' && (
                                     <p>Well-structured data with consistent fields. Perfect for relational databases.</p>
                                 )}
@@ -129,26 +129,26 @@ export default function IntelligenceSidebar({
 
                     {/* Similar Files Count */}
                     {comparison && comparison.similarFiles.length > 0 && (
-                        <Card>
-                            <CardHeader className="pb-2">
+                        <Card className="rounded-lg py-3 px-3">
+                            <CardHeader className="pb-2 px-0">
                                 <CardTitle className="text-sm flex items-center gap-2">
-                                    <Users className="w-4 h-4 text-purple-600" />
+                                    <Users className="w-4 h-4 text-purple-400" />
                                     Similar Files
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="pt-0">
-                                <div className="text-lg font-semibold text-purple-600">
+                            <CardContent className="pt-0 px-0">
+                                <div className="text-lg font-semibold text-purple-400">
                                     {comparison.similarFiles.length}
                                 </div>
-                                <p className="text-xs text-gray-600">
+                                <p className="text-xs text-gray-400">
                                     files with similar structure
                                 </p>
                                 {comparison.similarFiles.length > 0 && (
                                     <div className="mt-2 space-y-1">
                                         {comparison.similarFiles.slice(0, 3).map((file, idx) => (
-                                            <div key={idx} className="text-xs bg-gray-100 p-2 rounded">
+                                            <div key={idx} className="text-xs bg-gray-700 p-2 rounded text-gray-200">
                                                 <div className="font-medium truncate">{file.fileName}</div>
-                                                <div className="text-gray-500">
+                                                <div className="text-gray-400">
                                                     {(file.similarity * 100).toFixed(0)}% similar
                                                 </div>
                                             </div>
@@ -160,37 +160,37 @@ export default function IntelligenceSidebar({
                     )}
 
                     {/* Schema Preview (Condensed) */}
-                    <Card>
-                        <CardHeader className="pb-2">
+                    <Card className="rounded-lg py-3 px-3">
+                        <CardHeader className="pb-2 px-0">
                             <CardTitle className="text-sm">Schema Preview</CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-0">
+                        <CardContent className="pt-0 px-0">
                             <div className="space-y-2 text-xs">
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600">Structure:</span>
-                                    <span className="font-medium">{analysis.structureType.replace('_', ' ')}</span>
+                                    <span className="text-gray-400">Structure:</span>
+                                    <span className="font-medium text-gray-200">{analysis.structureType.replace('_', ' ')}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600">Fields:</span>
-                                    <span className="font-medium">{analysis.uniqueFields.length}</span>
+                                    <span className="text-gray-400">Fields:</span>
+                                    <span className="font-medium text-gray-200">{analysis.uniqueFields.length}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600">Records:</span>
-                                    <span className="font-medium">{analysis.estimatedRecordCount}</span>
+                                    <span className="text-gray-400">Records:</span>
+                                    <span className="font-medium text-gray-200">{analysis.estimatedRecordCount}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600">Consistency:</span>
-                                    <span className="font-medium">{(analysis.fieldConsistency * 100).toFixed(0)}%</span>
+                                    <span className="text-gray-400">Consistency:</span>
+                                    <span className="font-medium text-gray-200">{(analysis.fieldConsistency * 100).toFixed(0)}%</span>
                                 </div>
                                 {analysis.hasNestedObjects && (
                                     <div className="flex justify-between">
-                                        <span className="text-gray-600">Nested Objects:</span>
+                                        <span className="text-gray-400">Nested Objects:</span>
                                         <Badge variant="secondary" className="text-xs">Yes</Badge>
                                     </div>
                                 )}
                                 {analysis.hasArrays && (
                                     <div className="flex justify-between">
-                                        <span className="text-gray-600">Arrays:</span>
+                                        <span className="text-gray-400">Arrays:</span>
                                         <Badge variant="secondary" className="text-xs">Yes</Badge>
                                     </div>
                                 )}
@@ -200,13 +200,13 @@ export default function IntelligenceSidebar({
 
                     {/* Field Consistency Alerts */}
                     {analysis.fieldConsistency < 0.8 && (
-                        <Card className="border-yellow-200 bg-yellow-50">
-                            <CardContent className="pt-4">
+                        <Card className="rounded-lg py-3 px-3 border-yellow-700 bg-yellow-900">
+                            <CardContent className="pt-4 px-0">
                                 <div className="flex items-start gap-2">
-                                    <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                                    <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5" />
                                     <div className="text-xs">
-                                        <div className="font-medium text-yellow-800">Inconsistent Fields</div>
-                                        <p className="text-yellow-700 mt-1">
+                                        <div className="font-medium text-yellow-200">Inconsistent Fields</div>
+                                        <p className="text-yellow-300 mt-1">
                                             Some fields are missing in certain records. This may affect data integrity.
                                         </p>
                                     </div>
@@ -216,24 +216,24 @@ export default function IntelligenceSidebar({
                     )}
 
                     {/* Metadata Enhancement */}
-                    <Card>
-                        <CardHeader className="pb-2">
+                    <Card className="rounded-lg py-3 px-3">
+                        <CardHeader className="pb-2 px-0">
                             <CardTitle className="text-sm flex items-center gap-2">
-                                <Tag className="w-4 h-4 text-indigo-600" />
+                                <Tag className="w-4 h-4 text-indigo-400" />
                                 Metadata
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-0 space-y-3">
+                        <CardContent className="pt-0 px-0 space-y-3">
                             {/* Tags */}
                             <div>
-                                <Label className="text-xs font-medium">Tags</Label>
+                                <Label className="text-xs font-medium text-gray-200">Tags</Label>
                                 <div className="flex gap-1 mt-1 flex-wrap">
                                     {tags.map((tag, idx) => (
                                         <Badge key={idx} variant="secondary" className="text-xs flex items-center gap-1">
                                             {tag}
                                             <button
                                                 onClick={() => handleRemoveTag(tag)}
-                                                className="ml-1 hover:bg-gray-300 rounded-full p-0.5"
+                                                className="ml-1 hover:bg-gray-600 rounded-full p-0.5"
                                             >
                                                 <X className="w-2 h-2" />
                                             </button>
@@ -261,7 +261,7 @@ export default function IntelligenceSidebar({
 
                             {/* Comments */}
                             <div>
-                                <Label className="text-xs font-medium">Comments</Label>
+                                <Label className="text-xs font-medium text-gray-200">Comments</Label>
                                 <Textarea
                                     placeholder="Add notes about this file..."
                                     value={comments}

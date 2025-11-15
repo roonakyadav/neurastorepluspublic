@@ -109,17 +109,17 @@ export default function JSONVisualizer({ data, onClose, fileName, allFiles }: an
 
     return (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <div className="bg-gray-900 rounded-lg p-4 w-[95%] h-[95%] relative flex">
-                <div className="flex-1 flex flex-col">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-semibold text-white">
+            <div className="bg-[#0B1220] rounded-lg w-[95%] h-[95%] relative flex flex-col lg:flex-row">
+                <div className="flex-1 flex flex-col min-w-0">
+                    <div className="flex justify-between items-center mt-6 px-4">
+                        <h2 className="text-lg font-semibold text-gray-200">
                             JSON Visualizer
                             {fileName && <span className="text-gray-400 ml-2">— {fileName}</span>}
                         </h2>
-                        <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-200">✕</button>
                     </div>
 
-                    <div className="flex gap-2 mb-4">
+                    <div className="flex gap-2 mt-6 px-4">
                         <button
                             onClick={() => setView("raw")}
                             className={`px-4 py-2 rounded-md transition ${view === "raw"
@@ -158,7 +158,7 @@ export default function JSONVisualizer({ data, onClose, fileName, allFiles }: an
                         </button>
                     </div>
 
-                    <div className="flex-1 rounded-lg border border-gray-700 overflow-hidden">
+                    <div className="flex-1 rounded-lg border border-gray-700 overflow-hidden mx-4 mb-4">
                         {view === "raw" && (
                             <div className="p-4 h-full overflow-y-auto bg-gray-800">
                                 <pre className="text-sm text-gray-300 whitespace-pre-wrap">
