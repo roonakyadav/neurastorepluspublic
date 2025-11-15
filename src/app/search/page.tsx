@@ -8,7 +8,9 @@ import { supabase } from "@/lib/supabaseClient";
 import SearchBar from "@/components/SearchBar";
 import FileCard from "@/components/FileCard";
 import FileTreeView from "@/components/FileTreeView";
+import JSONVisualizer from "@/components/JSONVisualizer";
 import { buildFileTree, sortTreeNodes, FileTreeNode } from "@/lib/utils/buildFileTree";
+import { JSONAnalyzer, JSONAnalysisResult } from "@/utils/jsonAnalyzer";
 import { motion } from "framer-motion";
 
 interface FileMetadata {
@@ -32,6 +34,8 @@ export default function SearchPage() {
     const [loading, setLoading] = useState(false);
     const [allCategories, setAllCategories] = useState<string[]>([]);
     const [highlightedPaths, setHighlightedPaths] = useState<Set<string>>(new Set());
+    const [fileAnalyses, setFileAnalyses] = useState<Record<string, JSONAnalysisResult>>({});
+    const [visualizingFile, setVisualizingFile] = useState<{ data: any; fileName: string } | null>(null);
 
     useEffect(() => {
         fetchCategories();
@@ -167,6 +171,41 @@ export default function SearchPage() {
         }
     };
 
+    // Analyze JSON files when results change
+    useEffect(() => {
+        const analyzeJSONFiles = async () => {
+            const jsonFiles = results.filter(file => file.mime_type === 'application/json');
+            const analyses: Record<string, JSONAnalysisResult> = {};
+
+            for (const file of jsonFiles) {
+                try {
+                    const response = await fetch(file.public_url);
+                    const jsonData = await response.json();
+                    const analysis = JSONAnalyzer.analyzeStructure(jsonData);
+                    analyses[file.name] = analysis;
+                } catch (error) {
+                    console.error(`Error analyzing ${file.name}:`, error);
+                }
+            }
+
+            setFileAnalyses(analyses);
+        };
+
+        if (results.length > 0) {
+            analyzeJSONFiles();
+        }
+    }, [results]);
+
+    const handleVisualizeFile = async (file: FileMetadata) => {
+        try {
+            const response = await fetch(file.public_url);
+            const data = await response.json();
+            setVisualizingFile({ data, fileName: file.name });
+        } catch (error) {
+            console.error('Error loading file for visualization:', error);
+        }
+    };
+
     const getFilterChips = () => {
         const baseFilters = ["All", "Images", "Documents", "Videos"];
         const staticFilters = ["JSON", "Text Files", "Others"];
@@ -242,6 +281,8 @@ export default function SearchPage() {
                                         size={file.size}
                                         type={file.mime_type}
                                         url={file.public_url}
+                                        analysis={fileAnalyses[file.name]}
+                                        onVisualize={file.mime_type === 'application/json' ? () => handleVisualizeFile(file) : undefined}
                                     />
                                     <div className="mt-2 flex items-center gap-2">
                                         <Badge variant="secondary">
@@ -284,6 +325,16 @@ export default function SearchPage() {
                     />
                 </div>
             </div>
+
+            {/* JSON Visualizer Modal */}
+            {visualizingFile && (
+                <JSONVisualizer
+                    data={visualizingFile.data}
+                    fileName={visualizingFile.fileName}
+                    allFiles={results.map(f => ({ name: f.name, content: null }))} // Simplified for now
+                    onClose={() => setVisualizingFile(null)}
+                />
+            )}
         </div>
     );
 }

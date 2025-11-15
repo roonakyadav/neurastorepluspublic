@@ -12,11 +12,20 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import ObjectView from "./ObjectView";
+import SchemaPreview from "./SchemaPreview";
+import IntelligenceSidebar from "./IntelligenceSidebar";
+import { JSONAnalyzer, JSONAnalysisResult, MultiFileComparison } from "@/utils/jsonAnalyzer";
 
-export default function JSONVisualizer({ data, onClose }: any) {
-    const [view, setView] = useState<"raw" | "graph" | "object">("raw");
+export default function JSONVisualizer({ data, onClose, fileName, allFiles }: any) {
+    const [view, setView] = useState<"raw" | "graph" | "object" | "schema">("raw");
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [analysis, setAnalysis] = useState<JSONAnalysisResult | null>(null);
+    const [comparison, setComparison] = useState<MultiFileComparison | null>(null);
+    const [metadata, setMetadata] = useState<{ tags: string[]; comments: string }>({
+        tags: [],
+        comments: ''
+    });
 
     const buildGraph = useCallback((json: any, parentId: string | null = null, depth = 0) => {
         if (!json || typeof json !== "object") return { nodes: [], edges: [] };
@@ -68,6 +77,31 @@ export default function JSONVisualizer({ data, onClose }: any) {
         }
     }, [data, buildGraph]);
 
+    // Analyze JSON structure
+    useEffect(() => {
+        if (data) {
+            const jsonAnalysis = JSONAnalyzer.analyzeStructure(data);
+            setAnalysis(jsonAnalysis);
+
+            // Compare with other files if available
+            if (allFiles && allFiles.length > 0) {
+                const otherAnalyses: Record<string, JSONAnalysisResult> = {};
+                allFiles.forEach((file: any) => {
+                    if (file.name !== fileName && file.content) {
+                        try {
+                            const fileData = JSON.parse(file.content);
+                            otherAnalyses[file.name] = JSONAnalyzer.analyzeStructure(fileData);
+                        } catch (e) {
+                            // Skip invalid JSON files
+                        }
+                    }
+                });
+                const fileComparison = JSONAnalyzer.compareWithOtherFiles(jsonAnalysis, otherAnalyses);
+                setComparison(fileComparison);
+            }
+        }
+    }, [data, fileName, allFiles]);
+
     const onConnect = useCallback(
         (params: any) => setEdges((eds) => addEdge(params, eds)),
         [setEdges]
@@ -75,66 +109,98 @@ export default function JSONVisualizer({ data, onClose }: any) {
 
     return (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <div className="bg-gray-900 rounded-lg p-4 w-[90%] h-[90%] relative">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold text-white">JSON Visualizer</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
-                </div>
+            <div className="bg-gray-900 rounded-lg p-4 w-[95%] h-[95%] relative flex">
+                <div className="flex-1 flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-white">
+                            JSON Visualizer
+                            {fileName && <span className="text-gray-400 ml-2">— {fileName}</span>}
+                        </h2>
+                        <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+                    </div>
 
-                <div className="flex gap-2 mb-4">
-                    <button
-                        onClick={() => setView("raw")}
-                        className={`px-4 py-2 rounded-md transition ${view === "raw"
+                    <div className="flex gap-2 mb-4">
+                        <button
+                            onClick={() => setView("raw")}
+                            className={`px-4 py-2 rounded-md transition ${view === "raw"
                                 ? "bg-blue-600 text-white"
                                 : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                            }`}
-                    >
-                        Raw JSON
-                    </button>
-                    <button
-                        onClick={() => setView("graph")}
-                        className={`px-4 py-2 rounded-md transition ${view === "graph"
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                            }`}
-                    >
-                        Graph View
-                    </button>
-                    <button
-                        onClick={() => setView("object")}
-                        className={`px-4 py-2 rounded-md transition ${view === "object"
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                            }`}
-                    >
-                        Object View
-                    </button>
-                </div>
-
-                <div className="w-full h-full rounded-lg border border-gray-700 overflow-hidden">
-                    {view === "raw" && (
-                        <div className="p-4 h-full overflow-y-auto bg-gray-800">
-                            <pre className="text-sm text-gray-300 whitespace-pre-wrap">
-                                {JSON.stringify(data, null, 2)}
-                            </pre>
-                        </div>
-                    )}
-                    {view === "graph" && (
-                        <ReactFlow
-                            nodes={nodes}
-                            edges={edges}
-                            onNodesChange={onNodesChange}
-                            onEdgesChange={onEdgesChange}
-                            onConnect={onConnect}
-                            fitView
+                                }`}
                         >
-                            <MiniMap />
-                            <Controls />
-                            <Background gap={16} color="#2d2d2d" />
-                        </ReactFlow>
-                    )}
-                    {view === "object" && <ObjectView jsonData={data} />}
+                            Raw JSON
+                        </button>
+                        <button
+                            onClick={() => setView("graph")}
+                            className={`px-4 py-2 rounded-md transition ${view === "graph"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                                }`}
+                        >
+                            Graph View
+                        </button>
+                        <button
+                            onClick={() => setView("object")}
+                            className={`px-4 py-2 rounded-md transition ${view === "object"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                                }`}
+                        >
+                            Object View
+                        </button>
+                        <button
+                            onClick={() => setView("schema")}
+                            className={`px-4 py-2 rounded-md transition ${view === "schema"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                                }`}
+                        >
+                            Schema Preview
+                        </button>
+                    </div>
+
+                    <div className="flex-1 rounded-lg border border-gray-700 overflow-hidden">
+                        {view === "raw" && (
+                            <div className="p-4 h-full overflow-y-auto bg-gray-800">
+                                <pre className="text-sm text-gray-300 whitespace-pre-wrap">
+                                    {JSON.stringify(data, null, 2)}
+                                </pre>
+                            </div>
+                        )}
+                        {view === "graph" && (
+                            <ReactFlow
+                                nodes={nodes}
+                                edges={edges}
+                                onNodesChange={onNodesChange}
+                                onEdgesChange={onEdgesChange}
+                                onConnect={onConnect}
+                                fitView
+                            >
+                                <MiniMap />
+                                <Controls />
+                                <Background gap={16} color="#2d2d2d" />
+                            </ReactFlow>
+                        )}
+                        {view === "object" && <ObjectView jsonData={data} onDataChange={(newData) => {
+                            // Update the data in the visualizer
+                            // This will sync across all views
+                        }} />}
+                        {view === "schema" && analysis && (
+                            <div className="p-4 h-full overflow-y-auto bg-gray-800">
+                                <SchemaPreview analysis={analysis} fileName={fileName} />
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {analysis && (
+                    <IntelligenceSidebar
+                        analysis={analysis}
+                        comparison={comparison || undefined}
+                        fileName={fileName}
+                        metadata={metadata}
+                        onMetadataChange={setMetadata}
+                    />
+                )}
             </div>
         </div>
     );
