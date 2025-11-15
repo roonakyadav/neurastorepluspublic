@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import DataQueryModal from "./DataQueryModal";
 
 interface FileMetadata {
     id: number;
@@ -15,6 +16,9 @@ interface FileMetadata {
     public_url: string;
     uploaded_at: string;
     ai_tags?: string[];
+    table_name?: string;
+    storage_type?: string;
+    record_count?: number;
 }
 
 interface DashboardChartsProps {
@@ -34,6 +38,8 @@ const getFileTypeCategory = (type: string) => {
 
 export default function DashboardCharts({ files, onAnalyzeJSON }: { files: any[], onAnalyzeJSON: (file: any) => void }) {
     const [validJsonFiles, setValidJsonFiles] = useState<Set<string>>(new Set());
+    const [queryModalOpen, setQueryModalOpen] = useState(false);
+    const [selectedTable, setSelectedTable] = useState<{ name: string; fileName: string } | null>(null);
 
     // Check JSON validity for .json files
     useEffect(() => {
@@ -184,7 +190,10 @@ export default function DashboardCharts({ files, onAnalyzeJSON }: { files: any[]
                         {files.map((file) => (
                             <div key={file.id} className="p-3 bg-gray-800 rounded-lg border border-gray-700 hover:border-gray-500 transition">
                                 <p className="text-sm font-medium truncate">{file.name}</p>
-                                <p className="text-xs text-gray-400">{file.category || "Uncategorized"} • {(file.size / 1024).toFixed(2)} KB</p>
+                                <p className="text-xs text-gray-400">
+                                    {file.category || "Uncategorized"} • {(file.size / 1024).toFixed(2)} KB
+                                    {file.record_count && ` • ${file.record_count} records`}
+                                </p>
 
                                 {/* File Category Badge */}
                                 <div className="mt-3 flex justify-between items-center">
@@ -195,29 +204,56 @@ export default function DashboardCharts({ files, onAnalyzeJSON }: { files: any[]
                                             }`}
                                     >
                                         {file.category || "Unclassified"}
+                                        {file.storage_type && ` (${file.storage_type})`}
                                     </span>
 
-                                    {file.name.endsWith(".json") && validJsonFiles.has(file.name) ? (
-                                        <button
-                                            onClick={() => onAnalyzeJSON(file)}
-                                            className="text-xs px-3 py-1 rounded-md bg-yellow-600 hover:bg-yellow-500 text-white transition"
-                                        >
-                                            Analyze
-                                        </button>
-                                    ) : (
-                                        <button
-                                            className="text-xs px-3 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white transition"
-                                            disabled
-                                        >
-                                            Malformed
-                                        </button>
-                                    )}
+                                    {/* Action buttons */}
+                                    <div className="flex gap-1">
+                                        {file.table_name && file.storage_type === 'SQL' ? (
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedTable({ name: file.table_name!, fileName: file.name });
+                                                    setQueryModalOpen(true);
+                                                }}
+                                                className="text-xs px-3 py-1 rounded-md bg-green-600 hover:bg-green-500 text-white transition"
+                                            >
+                                                Query Data
+                                            </button>
+                                        ) : file.name.endsWith(".json") && validJsonFiles.has(file.name) ? (
+                                            <button
+                                                onClick={() => onAnalyzeJSON(file)}
+                                                className="text-xs px-3 py-1 rounded-md bg-yellow-600 hover:bg-yellow-500 text-white transition"
+                                            >
+                                                Analyze
+                                            </button>
+                                        ) : file.name.endsWith(".json") ? (
+                                            <button
+                                                className="text-xs px-3 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white transition"
+                                                disabled
+                                            >
+                                                Malformed
+                                            </button>
+                                        ) : null}
+                                    </div>
                                 </div>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Data Query Modal */}
+            {selectedTable && (
+                <DataQueryModal
+                    isOpen={queryModalOpen}
+                    onClose={() => {
+                        setQueryModalOpen(false);
+                        setSelectedTable(null);
+                    }}
+                    tableName={selectedTable.name}
+                    fileName={selectedTable.fileName}
+                />
+            )}
         </>
     );
 }

@@ -195,25 +195,30 @@ media/
 - **Validation**: Size limits (50MB), duplicate detection
 - **Processing**: Buffer reading, MIME detection, checksum calculation
 
-### 2. Storage Phase
-- **Intelligent Organization**: Content-based folder assignment
-- **Supabase Upload**: Secure file storage with public URLs
+### 2. Content-Based Storage Decision
+- **JSON Files**: Parse content and store directly in database tables (not as files)
+- **Other Files**: Intelligent folder assignment and Supabase Storage upload
 - **Metadata Creation**: Comprehensive file information storage
 
-### 3. Analysis Phase
-- **JSON Detection**: Automatic JSON file identification
-- **Schema Inference**: Recursive structure analysis
+### 3. JSON Processing (Special Case)
+- **Direct Database Storage**: JSON content parsed and stored as structured data
+- **Schema Inference**: Recursive structure analysis for table creation
+- **Automatic Table Generation**: Dynamic CREATE TABLE from JSON schema
+- **Data Insertion**: JSON objects stored as database records
+- **No File Storage**: JSON files are not kept as files, only their structured data
+
+### 4. Traditional File Storage (Non-JSON)
+- **Supabase Upload**: Secure file storage with public URLs
+- **Intelligent Organization**: Content-based folder assignment
+- **Metadata Linking**: Database references to stored files
+
+### 5. Analysis Phase (All Files)
 - **Storage Determination**: SQL vs NoSQL recommendation based on:
   - Data structure complexity
   - Nesting depth
   - Field consistency
   - Array vs object patterns
-
-### 4. Table Creation Phase (SQL Only)
-- **Schema Mapping**: JSON types → SQL types
-- **Table Generation**: Dynamic CREATE TABLE statements
-- **Data Insertion**: Original JSON data population
-- **Relationship Updates**: Metadata linking
+- **Schema Storage**: Analysis results stored in json_schemas table
 
 ## Search and Visualization Features
 

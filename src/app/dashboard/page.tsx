@@ -21,7 +21,7 @@ export default function DashboardPage() {
             try {
                 const { data, error } = await supabase
                     .from("files_metadata")
-                    .select("*")
+                    .select("*, table_name, storage_type, record_count")
                     .order("uploaded_at", { ascending: false });
                 if (error) throw error;
                 if (!Array.isArray(data)) throw new Error("Invalid data format");
@@ -52,7 +52,7 @@ export default function DashboardPage() {
                     try {
                         const { data, error } = await supabase
                             .from("files_metadata")
-                            .select("*")
+                            .select("*, table_name, storage_type, record_count")
                             .order("uploaded_at", { ascending: false });
                         if (error) throw error;
                         if (!Array.isArray(data)) throw new Error("Invalid data format");
@@ -82,7 +82,7 @@ export default function DashboardPage() {
                     try {
                         const { data, error } = await supabase
                             .from("files_metadata")
-                            .select("*")
+                            .select("*, table_name, storage_type, record_count")
                             .order("uploaded_at", { ascending: false });
                         if (error) throw error;
                         if (!Array.isArray(data)) throw new Error("Invalid data format");

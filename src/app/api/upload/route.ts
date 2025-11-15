@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { detectMimeType, getIntelligentFolderPath, generateFilePath, uploadToSupabase, saveFileMetadata } from "@/lib/utils/fileHandler";
 import { processJSONFile, saveJSONSchema } from "@/lib/utils/schemaGenerator";
+import { processJSONData, createTablesAndInsertData } from "@/lib/utils/jsonProcessor";
 import { supabase } from "@/lib/supabaseClient";
 import crypto from "crypto";
 
@@ -178,8 +179,9 @@ export async function POST(req: Request) {
 
         // Step 8: Save metadata to database
         let metadataSaved;
+        let fileId;
         try {
-            const { error } = await supabase.from('files_metadata').insert([cleanData]);
+            const { data, error } = await supabase.from('files_metadata').insert([cleanData]).select('id').single();
 
             if (error) {
                 console.error('Database metadata save failed:', error);
@@ -188,6 +190,7 @@ export async function POST(req: Request) {
 
             console.log('Metadata saved successfully');
             metadataSaved = true;
+            fileId = data.id;
         } catch (error) {
             console.error("Database metadata save failed:", error);
             return NextResponse.json(
@@ -200,6 +203,70 @@ export async function POST(req: Request) {
             );
         }
 
+        // Step 9: Process JSON files via Edge Function
+        console.log(`[UPLOAD] Checking if JSON file: mimeType=${mimeType}, fileName=${file.name}`);
+        if (mimeType === 'application/json' || file.name.endsWith('.json')) {
+            console.log('[UPLOAD] JSON file detected, calling Edge Function...');
+            try {
+                console.log('[UPLOAD] Processing JSON file:', fileId);
+                const jsonContent = buffer.toString('utf-8');
+                console.log('[UPLOAD] JSON content length:', jsonContent.length);
+
+                // Parse JSON content
+                let jsonData: any;
+                try {
+                    jsonData = JSON.parse(jsonContent);
+                    console.log('[UPLOAD] JSON parsed successfully, type:', Array.isArray(jsonData) ? 'array' : 'object');
+                    if (Array.isArray(jsonData)) {
+                        console.log('[UPLOAD] Array length:', jsonData.length);
+                    }
+                } catch (parseError) {
+                    console.error('[UPLOAD] Invalid JSON content:', parseError);
+                    category = "Malformed JSON";
+                    // Continue with upload but mark as malformed
+                }
+
+                if (jsonData !== undefined) {
+                    console.log('[UPLOAD] Calling Edge Function for JSON processing...');
+
+                    // Call Supabase Edge Function
+                    const { data: edgeResult, error: edgeError } = await supabase.functions.invoke('process-json', {
+                        body: {
+                            jsonData,
+                            fileId,
+                            fileName: file.name,
+                            fileMetadata: {
+                                name: file.name,
+                                size: file.size,
+                                mime_type: mimeType
+                            }
+                        }
+                    });
+
+                    if (edgeError) {
+                        console.error('[UPLOAD] Edge Function error:', edgeError);
+                        throw new Error(`Edge Function failed: ${edgeError.message}`);
+                    }
+
+                    console.log('[UPLOAD] Edge Function result:', edgeResult);
+
+                    // Update category based on processing result
+                    category = edgeResult.storageType === 'SQL' ? 'SQL JSON' : 'NoSQL JSON';
+
+                    console.log(`[UPLOAD] JSON processing completed: ${edgeResult.storageType} - ${edgeResult.reasoning}`);
+                    console.log(`[UPLOAD] Records processed: ${edgeResult.recordCount}`);
+
+                } else {
+                    console.log('[UPLOAD] No JSON data to process');
+                }
+            } catch (error) {
+                console.error('[UPLOAD] Error during JSON processing:', error);
+                category = "Malformed JSON";
+                // Don't fail the upload if JSON processing fails
+            }
+        } else {
+            console.log('[UPLOAD] Not a JSON file, skipping JSON processing');
+        }
 
         return NextResponse.json({
             success: true,
@@ -210,6 +277,7 @@ export async function POST(req: Request) {
             folderPath,
             mimeType,
             size: file.size,
+            file_id: fileId
         });
 
     } catch (error: any) {
