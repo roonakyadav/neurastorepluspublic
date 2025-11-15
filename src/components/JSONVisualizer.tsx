@@ -12,12 +12,11 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import ObjectView from "./ObjectView";
-import SchemaPreview from "./SchemaPreview";
 import IntelligenceSidebar from "./IntelligenceSidebar";
 import { JSONAnalyzer, JSONAnalysisResult, MultiFileComparison } from "@/utils/jsonAnalyzer";
 
 export default function JSONVisualizer({ data, onClose, fileName, allFiles }: any) {
-    const [view, setView] = useState<"raw" | "graph" | "object" | "schema">("raw");
+    const [view, setView] = useState<"raw" | "graph" | "object">("raw");
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [analysis, setAnalysis] = useState<JSONAnalysisResult | null>(null);
@@ -147,15 +146,6 @@ export default function JSONVisualizer({ data, onClose, fileName, allFiles }: an
                         >
                             Object View
                         </button>
-                        <button
-                            onClick={() => setView("schema")}
-                            className={`px-4 py-2 rounded-md transition ${view === "schema"
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                                }`}
-                        >
-                            Schema Preview
-                        </button>
                     </div>
 
                     <div className="flex-1 rounded-lg border border-gray-700 overflow-hidden mx-4 mb-4">
@@ -184,11 +174,6 @@ export default function JSONVisualizer({ data, onClose, fileName, allFiles }: an
                             // Update the data in the visualizer
                             // This will sync across all views
                         }} />}
-                        {view === "schema" && analysis && (
-                            <div className="p-4 h-full overflow-y-auto bg-gray-800">
-                                <SchemaPreview analysis={analysis} fileName={fileName} />
-                            </div>
-                        )}
                     </div>
                 </div>
 
