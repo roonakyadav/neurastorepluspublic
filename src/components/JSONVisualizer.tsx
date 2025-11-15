@@ -15,7 +15,7 @@ import ObjectView from "./ObjectView";
 import IntelligenceSidebar from "./IntelligenceSidebar";
 import { JSONAnalyzer, JSONAnalysisResult, MultiFileComparison } from "@/utils/jsonAnalyzer";
 
-export default function JSONVisualizer({ data, onClose, fileName, allFiles }: any) {
+export default function JSONVisualizer({ data, onClose, fileName, fileId, allFiles }: any) {
     const [view, setView] = useState<"raw" | "graph" | "object">("raw");
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -182,8 +182,18 @@ export default function JSONVisualizer({ data, onClose, fileName, allFiles }: an
                         analysis={analysis}
                         comparison={comparison || undefined}
                         fileName={fileName}
-                        metadata={metadata}
-                        onMetadataChange={setMetadata}
+                        fileId={fileId}
+                        allAnalyses={allFiles ? allFiles.reduce((acc: Record<string, JSONAnalysisResult>, file: any) => {
+                            if (file.name !== fileName && file.content) {
+                                try {
+                                    const fileData = JSON.parse(file.content);
+                                    acc[file.name] = JSONAnalyzer.analyzeStructure(fileData);
+                                } catch (e) {
+                                    // Skip invalid JSON
+                                }
+                            }
+                            return acc;
+                        }, {} as Record<string, JSONAnalysisResult>) : undefined}
                     />
                 )}
             </div>

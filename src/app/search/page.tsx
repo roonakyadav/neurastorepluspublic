@@ -35,7 +35,7 @@ export default function SearchPage() {
     const [allCategories, setAllCategories] = useState<string[]>([]);
     const [highlightedPaths, setHighlightedPaths] = useState<Set<string>>(new Set());
     const [fileAnalyses, setFileAnalyses] = useState<Record<string, JSONAnalysisResult>>({});
-    const [visualizingFile, setVisualizingFile] = useState<{ data: any; fileName: string } | null>(null);
+    const [visualizingFile, setVisualizingFile] = useState<{ data: any; fileName: string; fileId?: string } | null>(null);
 
     useEffect(() => {
         fetchCategories();
@@ -200,7 +200,7 @@ export default function SearchPage() {
         try {
             const response = await fetch(file.public_url);
             const data = await response.json();
-            setVisualizingFile({ data, fileName: file.name });
+            setVisualizingFile({ data, fileName: file.name, fileId: file.id.toString() });
         } catch (error) {
             console.error('Error loading file for visualization:', error);
         }
@@ -284,14 +284,7 @@ export default function SearchPage() {
                                         analysis={fileAnalyses[file.name]}
                                         onVisualize={file.mime_type === 'application/json' ? () => handleVisualizeFile(file) : undefined}
                                     />
-                                    <div className="mt-2 flex items-center gap-2">
-                                        <Badge variant="secondary">
-                                            Tag: {file.category}
-                                        </Badge>
-                                        <Badge variant="outline">
-                                            {(file.confidence * 100).toFixed(0)}%
-                                        </Badge>
-                                    </div>
+
                                 </motion.div>
                             ))}
                         </motion.div>
@@ -331,6 +324,7 @@ export default function SearchPage() {
                 <JSONVisualizer
                     data={visualizingFile.data}
                     fileName={visualizingFile.fileName}
+                    fileId={visualizingFile.fileId}
                     allFiles={results.map(f => ({ name: f.name, content: null }))} // Simplified for now
                     onClose={() => setVisualizingFile(null)}
                 />
