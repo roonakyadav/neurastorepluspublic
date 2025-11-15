@@ -1,17 +1,13 @@
 export function detectFileCategory(name: string, mime: string): string {
-    const ext = name.split('.').pop()?.toLowerCase() || '';
-    if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) return 'Image';
-    if (mime.startsWith('video/') || ['mp4', 'mkv', 'mov', 'avi'].includes(ext)) return 'Video';
-    if (mime.startsWith('audio/') || ['mp3', 'wav', 'aac', 'flac'].includes(ext)) return 'Audio';
-    if (['pdf'].includes(ext)) return 'Document';
-    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'Archive';
-    if (['txt', 'md', 'csv', 'log'].includes(ext)) return 'Text';
-    if (['html', 'css', 'js', 'ts', 'jsx', 'tsx', 'json', 'sql'].includes(ext)) {
-        if (ext === 'json') return 'JSON';
-        if (ext === 'sql') return 'SQL';
-        return 'Code';
-    }
-    return 'General';
+    // Classification based on MIME type only
+    if (mime.startsWith('image/')) return 'Image';
+    if (mime.startsWith('video/')) return 'Video';
+    if (mime.startsWith('audio/')) return 'Audio';
+    if (mime === 'application/pdf') return 'Document';
+    if (mime === 'application/zip' || mime === 'application/x-zip') return 'Archive';
+
+    // Fallback for other types
+    return 'Other';
 }
 
 export function classifyJSON(content: string): string {

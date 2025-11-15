@@ -206,17 +206,17 @@ export default function FilePreview({
 
     const renderDetails = () => (
         <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="space-y-3 text-sm">
                 <div>
-                    <span className="font-medium text-muted-foreground">File Name:</span>
+                    <span className="font-medium text-muted-foreground">Filename:</span>
                     <p className="mt-1 break-all">{fileName}</p>
                 </div>
                 <div>
-                    <span className="font-medium text-muted-foreground">Size:</span>
+                    <span className="font-medium text-muted-foreground">File size:</span>
                     <p className="mt-1">{formatFileSize(size)}</p>
                 </div>
                 <div>
-                    <span className="font-medium text-muted-foreground">Type:</span>
+                    <span className="font-medium text-muted-foreground">MIME type:</span>
                     <p className="mt-1">{mimeType}</p>
                 </div>
                 <div>
@@ -225,36 +225,16 @@ export default function FilePreview({
                         {category ? (
                             <Badge variant="secondary">
                                 {category}
-                                {confidence && (
-                                    <span className="ml-1 text-xs opacity-75">
-                                        ({Math.round(confidence * 100)}%)
-                                    </span>
-                                )}
                             </Badge>
                         ) : (
                             <span className="text-muted-foreground">Unclassified</span>
                         )}
                     </div>
                 </div>
-            </div>
-            <div className="flex gap-2">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open(fileUrl, '_blank')}
-                    className="flex-1"
-                >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPreviewMode('preview')}
-                >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Preview
-                </Button>
+                <div>
+                    <span className="font-medium text-muted-foreground">Uploaded date/time:</span>
+                    <p className="mt-1">{new Date().toLocaleString()}</p>
+                </div>
             </div>
         </div>
     );

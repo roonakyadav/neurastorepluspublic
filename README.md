@@ -1,58 +1,209 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NeuraStore+ — Intelligent Multi-Modal Storage System
 
-## Getting Started
+NeuraStore+ is an advanced file analysis and storage platform that intelligently organizes and processes multi-modal content. It automatically categorizes files, processes JSON data with SQL/NoSQL determination, and provides real-time visualization and querying capabilities.
 
-First, install dependencies:
+## Key Features
+
+- **Unified File Upload**: Single interface for all file types (images, videos, audio, documents, code, archives)
+- **Intelligent Organization**: Automatic categorization and directory structure based on content analysis
+- **Local Processing**: No external API dependencies - all classification done client-side
+- **Full JSON Processing**: Automatic SQL/NoSQL determination, table creation, and data insertion
+- **Data Querying**: Built-in SQL query interface for processed JSON data
+- **Schema Management**: Version history and conflict detection for evolving data structures
+- **Real-time Dashboard**: Charts and analytics for uploaded files and data tables
+- **File Preview**: Built-in preview for images, videos, PDFs, and text files
+- **Schema Visualization**: Interactive graphs for JSON data structures
+- **Search & History**: Full-text search and file management
+- **Batch Processing**: Efficient handling of large JSON files (up to 50MB)
+
+## Tech Stack
+
+### Frontend
+- **Next.js 14+**: App Router, Server Components
+- **React 19**: Latest React features
+- **TypeScript**: Type safety
+- **Tailwind CSS**: Utility-first styling
+- **Radix UI**: Accessible component primitives
+- **Framer Motion**: Animations
+- **React Dropzone**: File upload handling
+- **Recharts**: Data visualization
+- **React Flow**: Schema visualization
+
+### Backend
+- **Next.js API Routes**: Serverless functions
+- **Supabase**: Database and file storage
+- **PostgreSQL**: Primary database
+- **SQL Generation**: Dynamic table creation
+
+### Utilities
+- **file-type**: MIME type detection
+- **pdf-parse**: PDF text extraction
+- **fluent-ffmpeg**: Media processing
+- **crypto**: File checksums
+
+## System Architecture Summary
+
+NeuraStore+ follows a modern full-stack architecture with Next.js providing both frontend and backend capabilities. The system uses Supabase for database operations and file storage, with intelligent processing pipelines that automatically determine optimal storage strategies for different data types.
+
+### High-Level Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend API   │    │   Database      │
+│   (Next.js)     │◄──►│   (Next.js)     │◄──►│   (Supabase)    │
+│                 │    │                 │    │                 │
+│ • File Upload   │    │ • /api/upload   │    │ • files_metadata│
+│ • Dashboard     │    │ • /api/analyze  │    │ • json_schemas  │
+│ • Search        │    │ • /api/search   │    │ • Dynamic SQL   │
+│ • Visualization │    │ • /api/create   │    │ • Storage       │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+## Folder Structure
+
+```
+.
+├── public/                          # Static assets
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── src/
+│   ├── app/                        # Next.js App Router
+│   │   ├── api/                    # API routes
+│   │   │   ├── analyze/            # File analysis endpoint
+│   │   │   ├── analyze-json/       # JSON schema analysis
+│   │   │   ├── create-sql-table/   # SQL table creation
+│   │   │   ├── handle-schema-conflict/ # Schema conflict resolution
+│   │   │   ├── infer-schema/       # Schema inference
+│   │   │   ├── insert-sql-rows/    # Data insertion
+│   │   │   ├── process-json/       # JSON processing
+│   │   │   ├── query-table/        # Data querying
+│   │   │   ├── search/             # Search functionality
+│   │   │   └── upload/             # File upload
+│   │   ├── dashboard/              # Dashboard page
+│   │   ├── history/                # History page
+│   │   ├── search/                 # Search page
+│   │   ├── settings/               # Settings page
+│   │   ├── upload/                 # Upload page
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx              # Root layout
+│   │   └── page.tsx                # Home page
+│   ├── components/                 # React components
+│   │   ├── ui/                     # Reusable UI components
+│   │   │   ├── badge.tsx
+│   │   │   ├── button.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── dialog.tsx
+│   │   │   ├── input.tsx
+│   │   │   ├── label.tsx
+│   │   │   ├── progress.tsx
+│   │   │   ├── select.tsx
+│   │   │   ├── sheet.tsx
+│   │   │   ├── switch.tsx
+│   │   │   ├── table.tsx
+│   │   │   ├── textarea.tsx
+│   │   │   └── toast.tsx
+│   │   ├── ChartVisualizer.tsx     # Chart visualization
+│   │   ├── ClientProviders.tsx     # Client-side providers
+│   │   ├── ClientToastProvider.tsx # Toast notifications
+│   │   ├── ConfirmUploadDialog.tsx # Upload confirmation
+│   │   ├── DashboardCharts.tsx     # Dashboard charts
+│   │   ├── DataQueryModal.tsx      # Data querying interface
+│   │   ├── FileCard.tsx            # File display card
+│   │   ├── FilePreview.tsx         # File preview component
+│   │   ├── FileTreeView.tsx        # File tree visualization
+│   │   ├── FileUpload.tsx          # File upload component
+│   │   ├── IntelligenceSidebar.tsx # Intelligence sidebar
+│   │   ├── JSONVisualizer.tsx      # JSON visualization
+│   │   ├── MainLayout.tsx          # Main application layout
+│   │   ├── ObjectView.tsx          # Object display
+│   │   ├── SchemaGraph.tsx         # Schema graph visualization
+│   │   ├── SchemaView.tsx          # Schema view
+│   │   ├── SearchBar.tsx           # Search bar component
+│   │   ├── Sidebar.tsx             # Application sidebar
+│   │   ├── StatsCard.tsx           # Statistics cards
+│   │   ├── Topbar.tsx              # Top navigation bar
+│   │   └── UploadAnalysisModal.tsx # Upload analysis modal
+│   ├── lib/                        # Utility libraries
+│   │   ├── utils/                  # Utility functions
+│   │   │   ├── buildFileTree.ts    # File tree building
+│   │   │   ├── fileHandler.ts      # File handling utilities
+│   │   │   ├── jsonProcessor.ts    # JSON processing
+│   │   │   └── schemaGenerator.ts  # Schema generation
+│   │   ├── classifyJsonServer.ts   # JSON classification
+│   │   ├── fileClassifier.ts       # File classification
+│   │   ├── i18n.ts                 # Internationalization
+│   │   ├── schemaUtils.ts          # Schema utilities
+│   │   ├── supabaseClient.ts       # Supabase client
+│   │   └── utils.ts                # General utilities
+│   └── utils/                      # Additional utilities
+│       └── jsonAnalyzer.ts         # JSON analysis
+├── supabase/                       # Supabase Edge Functions
+│   └── functions/
+│       └── process-json/           # JSON processing function
+│           └── index.ts
+├── ARCHITECTURE.md                 # Detailed architecture docs
+├── components.json                 # Component configuration
+├── eslint.config.mjs               # ESLint configuration
+├── next.config.ts                  # Next.js configuration
+├── package.json                    # Project dependencies
+├── postcss.config.mjs              # PostCSS configuration
+├── sample_data.json                # Sample data for testing
+├── supabase_setup.sql              # Database setup script
+├── test_json_pipeline.js           # Test pipeline script
+├── tsconfig.json                   # TypeScript configuration
+└── .env.example                    # Environment variables template
+```
+
+## Documentation
+
+For detailed technical documentation, see:
+
+- **[System Architecture](docs/architecture.md)** - Complete system overview, data flow diagrams, database schema, and component breakdown
+- **[Developer Guide](docs/developer-guide.md)** - How to extend schema logic, add media categories, Supabase integration, and error handling
+
+## Installation & Local Setup
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Supabase account and project
+
+### 1. Clone and Install Dependencies
 
 ```bash
+git clone <repository-url>
+cd neurastore
 npm ci
 ```
 
-Then run the development server:
+### 2. Environment Setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-## Environment Setup
-
-1. Copy the environment file:
+Copy the environment file:
 ```bash
 cp .env.example .env.local
 ```
 
-2. Update the `.env.local` file with your actual values:
+Update the `.env.local` file with your actual values:
 - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anon key
 - `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key
 
-## Database Setup
+### 3. Database Setup
 
-1. **Initial Setup**: Run the database migration script in your Supabase SQL Editor:
+Run the database migration script in your Supabase SQL Editor:
 
 ```bash
 # Copy and paste the contents of supabase_setup.sql into your Supabase SQL Editor
 # This will create all necessary tables, indexes, and functions
 ```
 
-The setup script includes:
-- Extensions (UUID, pg_stat_statements)
-- New columns for `files_metadata` table
-- `json_schemas` table for schema storage
-- `schema_versions` table for version history
-- `data_processing_logs` table for operation tracking
-- Helper functions and views
-- Performance indexes
+### 4. Deploy Edge Function
 
-2. **Deploy Edge Function**: Deploy the JSON processing Edge Function:
+Deploy the JSON processing Edge Function:
 
 ```bash
 # Install Supabase CLI (if not already installed)
@@ -68,34 +219,44 @@ supabase link --project-ref YOUR_PROJECT_REF
 supabase functions deploy process-json
 ```
 
-3. **Verify Setup**:
-```sql
--- Check that all tables were created
-SELECT tablename FROM pg_tables
-WHERE schemaname = 'public'
-AND tablename IN ('json_schemas', 'schema_versions', 'data_processing_logs');
+### 5. Start Development Server
 
--- Check the active data tables view
-SELECT * FROM active_data_tables LIMIT 5;
-
--- Verify Edge Function deployment
-SELECT * FROM data_processing_logs ORDER BY created_at DESC LIMIT 5;
+```bash
+npm run dev
 ```
 
-## JSON Processing Features
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-### Automatic JSON Analysis
+## How to Upload Files
+
+1. **Navigate to Upload Page**: Go to `/upload` in your browser
+2. **Select Files**: Click or drag files into the upload area
+3. **Automatic Processing**: Files are automatically categorized and stored
+4. **JSON Processing**: JSON files are analyzed for SQL/NoSQL determination
+5. **View Results**: Check the dashboard for processing results and analytics
+
+### Supported File Types
+- Images (JPEG, PNG, GIF, WebP, SVG)
+- Videos (MP4, AVI, MOV, WMV)
+- Audio (MP3, WAV, FLAC, AAC)
+- Documents (PDF, DOC, DOCX, TXT)
+- Code files (JS, TS, PY, HTML, CSS, etc.)
+- Archives (ZIP, RAR, 7Z)
+- JSON files (automatic processing)
+
+## How Intelligent JSON Storage Works
+
 When you upload a JSON file, NeuraStore+ automatically:
 
-1. **Detects Structure**: Determines if the JSON is a single object or array of objects
-2. **Analyzes Complexity**: Evaluates nesting depth, data types, and consistency
-3. **Chooses Storage Strategy**:
-   - **SQL**: For tabular data with consistent structure (≤3 nesting levels, ≤50 fields)
-   - **NoSQL**: For complex nested structures or irregular data
+### 1. Structure Detection
+- Determines if the JSON is a single object or array of objects
+- Analyzes nesting depth, data types, and consistency
 
-### SQL Table Generation
-For SQL-compatible JSON:
+### 2. Storage Strategy Determination
+- **SQL Storage**: For tabular data with consistent structure (≤3 nesting levels, ≤50 fields)
+- **NoSQL Storage**: For complex nested structures or irregular data
 
+### 3. SQL Table Generation (for SQL-compatible JSON)
 - **Automatic Schema Inference**: Analyzes data types and relationships
 - **Normalization**: Splits nested objects into separate related tables
 - **Foreign Key Relationships**: Maintains data integrity with proper constraints
@@ -124,80 +285,32 @@ Upload `employees.json`:
 - `data_employees` (main table with employee data)
 - `data_employees_address` (normalized address data)
 
-### Data Querying Interface
+## API Endpoints Documentation
 
-- **Dashboard Integration**: "Query Data" buttons appear for processed JSON files
-- **Advanced Filtering**: Search by any field with partial matching
-- **Pagination**: Handle large datasets efficiently
-- **Export Options**: Direct links to Supabase SQL Editor
-- **Real-time Results**: Instant query execution with result counts
+### File Management
+- `POST /api/upload` - Upload files with automatic categorization
+- `GET /api/search` - Search files with filtering and pagination
 
-### Schema Evolution
+### JSON Processing
+- `POST /api/analyze-json` - Analyze JSON structure and determine storage type
+- `POST /api/create-sql-table` - Create SQL tables from JSON schemas
+- `POST /api/insert-sql-rows` - Insert JSON data into SQL tables
+- `POST /api/process-json` - Complete JSON processing pipeline
 
-- **Version History**: Tracks all schema changes over time
-- **Conflict Detection**: Warns about incompatible schema changes
-- **Migration Support**: Planned feature for schema updates
+### Data Querying
+- `POST /api/query-table` - Query data from processed JSON tables
+- `POST /api/infer-schema` - Infer schema from existing data
 
-## Testing
+### Schema Management
+- `POST /api/handle-schema-conflict` - Handle schema conflicts and versioning
 
-### JSON Pipeline Regression Tests
+### Analysis
+- `POST /api/analyze` - General file analysis
 
-Run comprehensive tests for the JSON processing pipeline:
+## Screenshots
 
-```bash
-# Run the regression test suite
-npm run test:pipeline
-```
+<!-- Screenshots will be added here -->
 
-The test suite includes:
-- **Array of objects with nested data** (SQL storage)
-- **Simple array of objects** (SQL storage)
-- **Single object** (SQL storage)
-- **Array of primitives** (NoSQL storage)
-- **Deeply nested objects** (NoSQL storage)
+## License
 
-Test files are automatically created and cleaned up after testing.
-
-### Manual Testing
-
-1. **Start the development server**:
-```bash
-npm run dev
-```
-
-2. **Upload test JSON files** via the web interface at `http://localhost:3000/upload`
-
-3. **Verify processing** in the dashboard at `http://localhost:3000/dashboard`
-
-4. **Query processed data** using the "Query Data" buttons
-
-## Features
-
-- **Unified File Upload**: Single interface for all file types (images, videos, audio, documents, code, archives)
-- **Intelligent Organization**: Automatic categorization and directory structure based on content analysis
-- **Local Processing**: No external API dependencies - all classification done client-side
-- **Full JSON Processing**: Automatic SQL/NoSQL determination, table creation, and data insertion
-- **Data Querying**: Built-in SQL query interface for processed JSON data
-- **Schema Management**: Version history and conflict detection for evolving data structures
-- **Real-time Dashboard**: Charts and analytics for uploaded files and data tables
-- **File Preview**: Built-in preview for images, videos, PDFs, and text files
-- **Schema Visualization**: Interactive graphs for JSON data structures
-- **Search & History**: Full-text search and file management
-- **Batch Processing**: Efficient handling of large JSON files (up to 50MB)
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

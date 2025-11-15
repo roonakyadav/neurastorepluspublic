@@ -3,7 +3,7 @@ export interface JSONAnalysisResult {
     isSQLFriendly: boolean;
     isNoSQLDocument: boolean;
     isGeneric: boolean;
-    storageRecommendation: 'SQL' | 'NoSQL' | 'Uncertain';
+    classification: 'SQL JSON' | 'NoSQL JSON' | 'Generic JSON' | 'Malformed JSON';
     fieldConsistency: number; // 0-1, how consistent fields are
     hasNestedObjects: boolean;
     hasArrays: boolean;
@@ -34,7 +34,7 @@ export class JSONAnalyzer {
             isSQLFriendly: false,
             isNoSQLDocument: false,
             isGeneric: false,
-            storageRecommendation: 'Uncertain',
+            classification: 'Malformed JSON',
             fieldConsistency: 0,
             hasNestedObjects: false,
             hasArrays: false,
@@ -46,7 +46,7 @@ export class JSONAnalyzer {
 
         if (!jsonData || typeof jsonData !== 'object') {
             result.isGeneric = true;
-            result.storageRecommendation = 'Uncertain';
+            result.classification = 'Malformed JSON';
             return result;
         }
 
@@ -77,8 +77,8 @@ export class JSONAnalyzer {
             }
         }
 
-        // Determine storage recommendation
-        this.determineStorageRecommendation(result);
+        // Determine classification
+        this.determineClassification(result);
 
         return result;
     }
@@ -195,13 +195,13 @@ export class JSONAnalyzer {
         return typeof value;
     }
 
-    private static determineStorageRecommendation(result: JSONAnalysisResult): void {
+    private static determineClassification(result: JSONAnalysisResult): void {
         if (result.isSQLFriendly) {
-            result.storageRecommendation = 'SQL';
+            result.classification = 'SQL JSON';
         } else if (result.isNoSQLDocument) {
-            result.storageRecommendation = 'NoSQL';
+            result.classification = 'NoSQL JSON';
         } else {
-            result.storageRecommendation = 'Uncertain';
+            result.classification = 'Generic JSON';
         }
     }
 
@@ -271,5 +271,32 @@ export class JSONAnalyzer {
         comparison.similarFiles.sort((a, b) => b.similarity - a.similarity);
 
         return comparison;
+    }
+
+    static checkSchemaConsistency(analyses: JSONAnalysisResult[]): { isConsistent: boolean; consistentCount: number; totalFiles: number } {
+        if (analyses.length <= 1) {
+            return { isConsistent: true, consistentCount: analyses.length, totalFiles: analyses.length };
+        }
+
+        // Check if all files have the same classification
+        const classifications = analyses.map(a => a.classification);
+        const uniqueClassifications = new Set(classifications);
+
+        // If all have the same classification and it's not Malformed, check field consistency
+        if (uniqueClassifications.size === 1 && !classifications.includes('Malformed JSON')) {
+            // For array-based JSON, check if fields are similar
+            const arrayAnalyses = analyses.filter(a => a.structureType === 'array_of_objects');
+            if (arrayAnalyses.length === analyses.length) {
+                // Calculate average field consistency
+                const avgConsistency = arrayAnalyses.reduce((sum, a) => sum + a.fieldConsistency, 0) / arrayAnalyses.length;
+                const isConsistent = avgConsistency > 0.7; // 70% consistency threshold
+                return { isConsistent, consistentCount: isConsistent ? analyses.length : 0, totalFiles: analyses.length };
+            }
+            // For other types, consider them consistent if same classification
+            return { isConsistent: true, consistentCount: analyses.length, totalFiles: analyses.length };
+        }
+
+        // If different classifications or includes malformed, not consistent
+        return { isConsistent: false, consistentCount: 0, totalFiles: analyses.length };
     }
 }
