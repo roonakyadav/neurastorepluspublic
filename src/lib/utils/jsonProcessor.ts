@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
 export interface NormalizedTable {
     name: string;
@@ -446,30 +446,80 @@ export async function createTablesAndInsertData(
 }
 
 /**
- * Create a table in Supabase - using pre-created tables approach
- * Since Supabase doesn't allow dynamic DDL from client, we'll use a generic table structure
+ * Create a table in Supabase using dynamic DDL via RPC function
  */
 async function createTableInSupabase(table: NormalizedTable): Promise<void> {
-    // For now, we'll assume the tables are pre-created or use a generic approach
-    // In a production system, you'd need to create RPC functions in Supabase that allow table creation
+    console.log(`[JSON_PROCESSOR] Creating table: ${table.name}`);
 
-    console.log(`[JSON_PROCESSOR] Table creation requested for: ${table.name}`);
-    console.log(`[JSON_PROCESSOR] Columns:`, table.columns.map(c => `${c.name} ${c.type}`));
+    // Generate CREATE TABLE SQL statement
+    const createTableSQL = generateCreateTableSQL(table);
 
-    // Check if table exists by trying to query it
+    console.log(`[JSON_PROCESSOR] Executing DDL: ${createTableSQL}`);
+
     try {
-        const { error } = await supabase
-            .from(table.name)
-            .select('id')
-            .limit(1);
+        // Use admin client if available, otherwise fall back to regular client
+        const client = supabaseAdmin || supabase;
+        console.log(`[JSON_PROCESSOR] supabaseAdmin exists: ${!!supabaseAdmin}`);
+        console.log(`[JSON_PROCESSOR] Using ${supabaseAdmin ? 'admin' : 'regular'} client for DDL`);
 
-        if (error && error.message.includes('does not exist')) {
-            console.warn(`[JSON_PROCESSOR] Table ${table.name} does not exist. You may need to create it manually in Supabase.`);
-            console.warn(`[JSON_PROCESSOR] Required columns:`, table.columns.map(c => `${c.name} ${c.type}${c.nullable ? '' : ' NOT NULL'}${c.isPrimaryKey ? ' PRIMARY KEY' : ''}`));
+        // Execute DDL using Supabase's RPC function for dynamic SQL
+        const { data, error } = await client.rpc('execute_sql', {
+            sql_query: createTableSQL
+        });
+
+        console.log(`[JSON_PROCESSOR] RPC result:`, { data, error });
+
+        if (error) {
+            console.error(`[JSON_PROCESSOR] DDL execution failed:`, error);
+            throw new Error(`Failed to create table ${table.name}: ${error.message}`);
         }
-    } catch (error) {
-        console.warn(`[JSON_PROCESSOR] Could not verify table existence:`, error);
+
+        // Check if the result indicates success
+        if (data && !data.success) {
+            console.error(`[JSON_PROCESSOR] DDL execution returned error:`, data);
+            throw new Error(`Failed to create table ${table.name}: ${data.error || 'Unknown error'}`);
+        }
+
+        console.log(`[JSON_PROCESSOR] Table ${table.name} created successfully`);
+    } catch (rpcError: any) {
+        console.error(`[JSON_PROCESSOR] RPC call failed:`, rpcError);
+        // For debugging, let's re-throw with more details
+        throw new Error(`RPC call failed: ${rpcError.message || String(rpcError)}`);
     }
+}
+
+/**
+ * Generate CREATE TABLE SQL statement
+ */
+function generateCreateTableSQL(table: NormalizedTable): string {
+    const columnsSQL = table.columns.map(col => {
+        let colSQL = `"${col.name}" ${col.type}`;
+
+        if (!col.nullable) {
+            colSQL += ' NOT NULL';
+        }
+
+        if (col.isPrimaryKey) {
+            colSQL += ' PRIMARY KEY';
+        }
+
+        return colSQL;
+    }).join(', ');
+
+    const foreignKeysSQL = table.columns
+        .filter(col => col.isForeignKey && col.references)
+        .map(col => `FOREIGN KEY ("${col.name}") REFERENCES "${col.references}"(id)`)
+        .join(', ');
+
+    let sql = `CREATE TABLE IF NOT EXISTS "${table.name}" (${columnsSQL}`;
+
+    if (foreignKeysSQL) {
+        sql += `, ${foreignKeysSQL}`;
+    }
+
+    sql += ')';
+
+    return sql;
 }
 
 /**

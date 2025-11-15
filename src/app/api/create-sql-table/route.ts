@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
 // Map JSON schema types to PostgreSQL types
 function mapJsonTypeToPostgres(jsonType: string): string {
@@ -35,8 +35,9 @@ function generateCreateTableSQL(tableName: string, schema: Record<string, string
     // Add file_id reference
     columns.push(`file_id UUID NOT NULL REFERENCES files_metadata(id)`);
 
-    // Add schema columns
+    // Add schema columns (skip 'id' as it's added manually)
     for (const [fieldName, jsonType] of Object.entries(schema)) {
+        if (fieldName === 'id') continue; // Skip 'id' field as it's added manually
         const postgresType = mapJsonTypeToPostgres(jsonType);
         columns.push(`${fieldName} ${postgresType}`);
     }
@@ -108,17 +109,26 @@ export async function POST(request: NextRequest) {
             .eq('file_id', fileId)
             .single();
 
-        if (existingSchema && !schemaCheckError) {
-            return NextResponse.json({
-                success: false,
-                message: `Schema already exists for this file. Use insert-sql-rows to add data.`,
-                tableName,
-                schemaId: existingSchema.id,
-                code: 'SCHEMA_EXISTS'
-            });
+        let schemaId = existingSchema?.id;
+        let schemaExists = !schemaCheckError && existingSchema;
+
+        if (schemaExists) {
+            // Schema exists - update metadata to ensure it's marked as SQL storage
+            const { error: updateError } = await supabase
+                .from('files_metadata')
+                .update({
+                    storage_type: 'SQL'
+                })
+                .eq('id', fileId);
+
+            if (updateError) {
+                console.error('Metadata update error for existing schema:', updateError);
+                // Don't fail the request, just log the error
+            }
         }
 
         // Check if table already exists
+        let tableExists = false;
         try {
             const { error: checkError } = await supabase
                 .from(tableName)
@@ -127,15 +137,73 @@ export async function POST(request: NextRequest) {
 
             // If no error, table exists
             if (!checkError) {
-                return NextResponse.json({
-                    success: false,
-                    message: `Table '${tableName}' already exists`,
-                    tableName,
-                    code: 'TABLE_EXISTS'
-                });
+                tableExists = true;
             }
         } catch {
             // Table doesn't exist, continue with creation
+        }
+
+        if (tableExists) {
+            // Table exists - ensure schema is saved if it doesn't exist
+            if (!schemaExists) {
+                // Save schema in json_schemas table
+                if (!supabaseAdmin) {
+                    console.error('supabaseAdmin not available for schema insert');
+                    return NextResponse.json(
+                        { error: 'Admin client not available', code: 'ADMIN_CLIENT_UNAVAILABLE' },
+                        { status: 500 }
+                    );
+                }
+                const { data: schemaRecord, error: schemaError } = await supabaseAdmin
+                    .from('json_schemas')
+                    .insert({
+                        file_id: fileId,
+                        schema: schema,
+                        storage_type: 'SQL'
+                    })
+                    .select('id')
+                    .single();
+
+                if (schemaError) {
+                    console.error('Schema save error for existing table:', schemaError);
+                    return NextResponse.json(
+                        {
+                            error: 'Failed to save schema for existing table',
+                            code: 'SCHEMA_SAVE_FAILED'
+                        },
+                        { status: 500 }
+                    );
+                }
+                schemaId = schemaRecord.id;
+            }
+
+            // Update files_metadata with table info for existing table
+            const metadataUpdate: any = {
+                table_name: tableName,
+                storage_type: 'SQL',
+                json_type: 'sql'
+            };
+            if (schemaId) {
+                metadataUpdate.schema_id = schemaId;
+            }
+
+            const { error: updateError } = await supabase
+                .from('files_metadata')
+                .update(metadataUpdate)
+                .eq('id', fileId);
+
+            if (updateError) {
+                console.error('Metadata update error for existing table:', updateError);
+                // Don't fail the request, just log the error
+            }
+
+            return NextResponse.json({
+                success: false,
+                message: `Table '${tableName}' already exists`,
+                tableName,
+                schemaId,
+                code: 'TABLE_EXISTS'
+            });
         }
 
         // Generate CREATE TABLE SQL
@@ -159,7 +227,22 @@ export async function POST(request: NextRequest) {
         }
 
         // Save schema in json_schemas table
-        const { data: schemaRecord, error: schemaError } = await supabase
+        if (!supabaseAdmin) {
+            console.error('supabaseAdmin not available for schema insert');
+            // Try to drop the created table since schema save failed
+            try {
+                await supabase.rpc('execute_sql', {
+                    sql_query: `DROP TABLE IF EXISTS ${tableName};`
+                });
+            } catch (dropError) {
+                console.error('Failed to drop table after schema error:', dropError);
+            }
+            return NextResponse.json(
+                { error: 'Admin client not available', code: 'ADMIN_CLIENT_UNAVAILABLE' },
+                { status: 500 }
+            );
+        }
+        const { data: schemaRecord, error: schemaError } = await supabaseAdmin
             .from('json_schemas')
             .insert({
                 file_id: fileId,
@@ -195,6 +278,7 @@ export async function POST(request: NextRequest) {
             .update({
                 table_name: tableName,
                 storage_type: 'SQL',
+                json_type: 'sql',
                 schema_id: schemaRecord.id
             })
             .eq('id', fileId);

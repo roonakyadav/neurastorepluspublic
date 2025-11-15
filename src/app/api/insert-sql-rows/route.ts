@@ -1,71 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
-import { compareSchemas } from '@/lib/schemaUtils';
-import { analyzeBatchSchema } from '@/lib/utils/schemaGenerator';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
-// Validate that record keys match schema columns
-function validateRecordAgainstSchema(record: Record<string, unknown>, schema: Record<string, string>): { valid: boolean; missingKeys?: string[]; extraKeys?: string[] } {
+// Fetch actual table columns from information_schema
+async function getTableColumns(tableName: string): Promise<string[]> {
+    if (!supabaseAdmin) {
+        throw new Error('Admin client not available');
+    }
+
+    // Use direct query instead of RPC
+    const { data, error } = await supabaseAdmin
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', tableName)
+        .eq('table_schema', 'public')
+        .order('column_name');
+
+    if (error) {
+        console.error('Error fetching table columns:', error);
+        throw new Error(`Failed to fetch table schema: ${error.message}`);
+    }
+
+    // Extract column names from the result
+    const columns = data?.map((row: any) => row.column_name) || [];
+    return columns;
+}
+
+// Validate that record keys match actual DB columns
+function validateRecordAgainstTable(record: Record<string, unknown>, dbColumns: string[]): { valid: boolean; extraKeys?: string[] } {
     const recordKeys = Object.keys(record);
-    const schemaKeys = Object.keys(schema);
 
-    // Check for missing keys (schema has columns that record doesn't have)
-    const missingKeys = schemaKeys.filter(key => !recordKeys.includes(key) && key !== 'id' && key !== 'file_id' && key !== 'created_at' && key !== 'updated_at');
-
-    // Check for extra keys (record has keys that schema doesn't have)
-    const extraKeys = recordKeys.filter(key => !schemaKeys.includes(key) && key !== 'id' && key !== 'file_id' && key !== 'created_at' && key !== 'updated_at');
+    // Check for extra keys (record has keys that table doesn't have)
+    // Ignore internal columns that are auto-handled
+    const internalColumns = ['id', 'file_id', 'created_at', 'updated_at'];
+    const extraKeys = recordKeys.filter(key => !dbColumns.includes(key) && !internalColumns.includes(key));
 
     return {
-        valid: missingKeys.length === 0 && extraKeys.length === 0,
-        missingKeys: missingKeys.length > 0 ? missingKeys : undefined,
+        valid: extraKeys.length === 0,
         extraKeys: extraKeys.length > 0 ? extraKeys : undefined
     };
 }
 
-// Generate INSERT SQL for multiple rows with embedded values
-function generateMultiRowInsertSQL(tableName: string, records: Record<string, unknown>[], schema: Record<string, string>, fileId: string): string {
-    if (records.length === 0) {
-        throw new Error('No records to insert');
-    }
 
-    // Get column names from schema (excluding system columns)
-    const columns = Object.keys(schema).filter(key => key !== 'id' && key !== 'file_id' && key !== 'created_at' && key !== 'updated_at');
-
-    // Add file_id column
-    const allColumns = ['file_id', ...columns, 'created_at', 'updated_at'];
-
-    const valueRows: string[] = [];
-
-    for (const record of records) {
-        const rowValues: string[] = [];
-
-        // Add file_id value
-        rowValues.push(`'${fileId}'`);
-
-        // Add values for schema columns
-        for (const column of columns) {
-            const value = record[column];
-            if (value === null || value === undefined) {
-                rowValues.push('NULL');
-            } else if (typeof value === 'string') {
-                // Escape single quotes and wrap in quotes
-                rowValues.push(`'${value.replace(/'/g, "''")}'`);
-            } else if (typeof value === 'boolean') {
-                rowValues.push(value ? 'TRUE' : 'FALSE');
-            } else {
-                // Numbers and other types
-                rowValues.push(String(value));
-            }
-        }
-
-        // Add timestamps
-        const now = new Date().toISOString();
-        rowValues.push(`'${now}'`, `'${now}'`);
-
-        valueRows.push(`(${rowValues.join(', ')})`);
-    }
-
-    return `INSERT INTO ${tableName} (${allColumns.join(', ')}) VALUES ${valueRows.join(', ')}`;
-}
 
 export async function POST(request: NextRequest) {
     try {
@@ -94,7 +69,14 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate file exists and has SQL table
-        const { data: fileRecord, error: fileError } = await supabase
+        if (!supabaseAdmin) {
+            console.error('supabaseAdmin not available for file metadata read');
+            return NextResponse.json(
+                { error: 'Admin client not available', code: 'ADMIN_CLIENT_UNAVAILABLE' },
+                { status: 500 }
+            );
+        }
+        const { data: fileRecord, error: fileError } = await supabaseAdmin
             .from('files_metadata')
             .select('id, name, table_name, storage_type, schema_id, record_count')
             .eq('id', fileId)
@@ -114,109 +96,38 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Get schema from json_schemas table
-        const { data: schemaRecord, error: schemaError } = await supabase
-            .from('json_schemas')
-            .select('schema')
-            .eq('id', fileRecord.schema_id)
-            .single();
-
-        if (schemaError || !schemaRecord) {
-            return NextResponse.json(
-                { error: 'Schema not found for this table', code: 'TABLE_NOT_FOUND' },
-                { status: 404 }
-            );
-        }
-
-        // Infer schema from incoming records
-        const batchAnalysis = analyzeBatchSchema(records);
-        const incomingSchema = batchAnalysis.proposedSQLSchema;
-
-        // Compare schemas for conflict detection
-        const schemaComparison = compareSchemas(schemaRecord.schema, incomingSchema);
-
-        if (!schemaComparison.isExactMatch) {
-            // Schema conflict detected - add to schema_versions and return error
-            try {
-                await supabase.rpc('create_schema_version', {
-                    p_file_id: fileId,
-                    p_schema_id: fileRecord.schema_id,
-                    p_schema: incomingSchema,
-                    p_storage_type: 'SQL',
-                    p_table_name: tableName,
-                    p_record_count: records.length,
-                    p_changes_description: 'Schema conflict detected during row insertion'
-                });
-            } catch (versionError) {
-                console.error('Failed to create schema version:', versionError);
-                // Continue with error response even if versioning fails
+        // Transform records into DB-ready rows
+        console.log('Transforming records for insertion, fileId:', fileId);
+        const rowsWithFileId = records.map((row: any) => {
+            const dbRow: any = { file_id: fileId };
+            // Copy all keys from the record (the table should have been created with the right columns)
+            for (const key of Object.keys(row)) {
+                dbRow[key] = row[key];
             }
-
-            return NextResponse.json(
-                {
-                    error: 'SCHEMA_CONFLICT',
-                    details: {
-                        missingColumns: schemaComparison.missingColumns,
-                        extraColumns: schemaComparison.extraColumns,
-                        mismatchedTypes: schemaComparison.mismatchedTypes
-                    }
-                },
-                { status: 409 }
-            );
-        }
-
-        // Validate all records against schema
-        for (let i = 0; i < records.length; i++) {
-            const record = records[i];
-            if (typeof record !== 'object' || record === null) {
-                return NextResponse.json(
-                    { error: `Record at index ${i} must be an object`, code: 'SCHEMA_MISMATCH' },
-                    { status: 400 }
-                );
-            }
-
-            const validation = validateRecordAgainstSchema(record as Record<string, unknown>, schemaRecord.schema);
-            if (!validation.valid) {
-                const errors: string[] = [];
-                if (validation.missingKeys?.length) {
-                    errors.push(`Missing required columns: ${validation.missingKeys.join(', ')}`);
-                }
-                if (validation.extraKeys?.length) {
-                    errors.push(`Extra columns not in schema: ${validation.extraKeys.join(', ')}`);
-                }
-
-                return NextResponse.json(
-                    {
-                        error: `Record at index ${i} does not match schema: ${errors.join('; ')}`,
-                        code: 'SCHEMA_MISMATCH'
-                    },
-                    { status: 400 }
-                );
-            }
-        }
-
-        // Generate INSERT SQL
-        const sql = generateMultiRowInsertSQL(tableName, records, schemaRecord.schema, fileId);
-
-        // Execute INSERT using Supabase RPC
-        const { error: insertError } = await supabase.rpc('execute_sql', {
-            sql_query: sql
+            return dbRow;
         });
 
-        if (insertError) {
-            console.error('Insert error:', insertError);
+        console.log('Rows ready for insertion:', rowsWithFileId.length, 'rows');
+
+        // Execute INSERT using Supabase client
+        if (!supabaseAdmin) {
+            console.error('supabaseAdmin not available for insert');
             return NextResponse.json(
-                {
-                    error: 'Failed to insert records',
-                    details: insertError.message,
-                    code: 'INSERT_FAILED'
-                },
+                { error: 'Admin client not available', code: 'ADMIN_CLIENT_UNAVAILABLE' },
                 { status: 500 }
             );
         }
+        const { error: insertError } = await supabaseAdmin!
+            .from(tableName)
+            .insert(rowsWithFileId);
+
+        if (insertError) {
+            console.error('Insert API error:', insertError);
+            return NextResponse.json({ error: insertError.message }, { status: 400 });
+        }
 
         // Update record count in files_metadata
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseAdmin
             .from('files_metadata')
             .update({
                 record_count: (fileRecord.record_count || 0) + records.length,
@@ -229,12 +140,7 @@ export async function POST(request: NextRequest) {
             // Don't fail the request, just log the error
         }
 
-        return NextResponse.json({
-            success: true,
-            fileId,
-            tableName,
-            insertedRows: records.length
-        });
+        return NextResponse.json({ message: 'Rows inserted successfully' });
 
     } catch (error: unknown) {
         console.error('Insert SQL rows API error:', error);

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, FolderOpen, FileText, Image, Video, Music, File, X, CheckCircle, AlertCircle } from "lucide-react";
+import { Upload, FolderOpen, FileText, Image, Video, Music, File, X, CheckCircle, AlertCircle, Code } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmUploadDialog } from "@/components/ConfirmUploadDialog";
@@ -38,6 +39,7 @@ const formatFileSize = (bytes: number) => {
 
 export default function UploadPage() {
     const { addToast } = useToast();
+    const router = useRouter();
     const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
     const [isDragOver, setIsDragOver] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -392,6 +394,10 @@ export default function UploadPage() {
                             <Button variant="outline" onClick={handleFolderSelect}>
                                 <FolderOpen className="mr-2 h-4 w-4" />
                                 Select Folder
+                            </Button>
+                            <Button variant="outline" onClick={() => router.push('/json-editor')}>
+                                <Code className="mr-2 h-4 w-4" />
+                                Write JSON
                             </Button>
                         </div>
                         <input

@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import DashboardCharts from "@/components/DashboardCharts";
 import JSONVisualizer from "@/components/JSONVisualizer";
+import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 
 export default function DashboardPage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const [files, setFiles] = useState<any[]>([]);
     const [filteredFiles, setFilteredFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -14,6 +18,7 @@ export default function DashboardPage() {
     const [sortBy, setSortBy] = useState("recent");
     const [showJSON, setShowJSON] = useState(false);
     const [jsonData, setJsonData] = useState(null);
+    const [selectedFile, setSelectedFile] = useState<any>(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -128,11 +133,32 @@ export default function DashboardPage() {
         applyFilters(selectedCategory, sortBy);
     }, [selectedCategory, sortBy, files]);
 
+    // Handle fileId query param for direct JSON visualization
+    useEffect(() => {
+        const fileId = searchParams.get('fileId');
+        if (fileId && files.length > 0) {
+            const file = files.find(f => f.id.toString() === fileId);
+            if (file) {
+                handleAnalyzeJSON(file);
+            }
+        }
+    }, [searchParams, files]);
+
     async function handleAnalyzeJSON(file: any) {
         try {
-            const res = await fetch(file.public_url);
-            const data = await res.json();
+            let data;
+            if (file.raw_json) {
+                // For manual JSON, parse from raw_json
+                data = JSON.parse(file.raw_json);
+            } else if (file.public_url) {
+                // For uploaded files, fetch from public_url
+                const res = await fetch(file.public_url);
+                data = await res.json();
+            } else {
+                throw new Error("No data source available");
+            }
             setJsonData(data);
+            setSelectedFile(file);
             setShowJSON(true);
         } catch (err) {
             console.error("Error analyzing JSON:", err);
@@ -147,7 +173,12 @@ export default function DashboardPage() {
 
     return (
         <div className="p-6 space-y-8">
-            <h1 className="text-2xl font-semibold text-white mb-4">Dashboard</h1>
+            <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+                <Button onClick={() => router.push('/json-editor')} className="bg-blue-600 hover:bg-blue-700">
+                    Write JSON
+                </Button>
+            </div>
 
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -174,7 +205,7 @@ export default function DashboardPage() {
             {/* Charts */}
             <DashboardCharts files={filteredFiles} onAnalyzeJSON={handleAnalyzeJSON} />
 
-            {showJSON && <JSONVisualizer data={jsonData} onClose={() => setShowJSON(false)} />}
+            {showJSON && selectedFile && <JSONVisualizer data={jsonData} fileName={selectedFile.name} fileId={selectedFile.id.toString()} onClose={() => setShowJSON(false)} />}
         </div>
     );
 }

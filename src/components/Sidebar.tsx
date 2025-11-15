@@ -18,6 +18,7 @@ const navigation = [
     { name: "Upload", href: "/upload", icon: Upload },
     { name: "Search", href: "/search", icon: Search },
     { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
+    { name: "JSON Editor", href: "/json-editor", icon: FileText },
     { name: "History", href: "/history", icon: History },
     { name: "Settings", href: "/settings", icon: Settings },
 ];

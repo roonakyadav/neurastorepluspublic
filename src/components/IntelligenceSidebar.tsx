@@ -13,13 +13,47 @@ import {
 } from 'lucide-react';
 import { JSONAnalysisResult, MultiFileComparison, JSONAnalyzer } from '@/utils/jsonAnalyzer';
 import { useToast } from '@/components/ui/toast';
+import { supabase } from '@/lib/supabaseClient';
+
+// Utility function to derive table name from file name
+const deriveTableName = (fileName: string, fileId: string): string => {
+    if (!fileName) {
+        return `data_table_${fileId}`;
+    }
+
+    // Remove extension
+    let name = fileName.replace(/\.[^/.]+$/, '');
+
+    // Replace spaces and hyphens with underscores
+    name = name.replace(/[\s\-]+/g, '_');
+
+    // Convert to lowercase
+    name = name.toLowerCase();
+
+    // Remove invalid characters (only keep a-z, 0-9, _)
+    name = name.replace(/[^a-z0-9_]/g, '');
+
+    // Collapse multiple underscores to one
+    name = name.replace(/_+/g, '_');
+
+    // Remove leading/trailing underscores
+    name = name.replace(/^_+|_+$/g, '');
+
+    // Prefix with data_
+    const tableName = `data_${name}`;
+
+    // Ensure name is not empty; fallback to data_table_<fileId>
+    return tableName || `data_table_${fileId}`;
+};
 
 interface IntelligenceSidebarProps {
     analysis: JSONAnalysisResult;
     comparison?: MultiFileComparison;
     fileName?: string;
     fileId?: string;
+    jsonType?: string;
     allAnalyses?: Record<string, JSONAnalysisResult>;
+    jsonData?: any;
     metadata?: {
         tags: string[];
         comments: string;
@@ -33,7 +67,9 @@ export default function IntelligenceSidebar({
     comparison,
     fileName,
     fileId,
+    jsonType,
     allAnalyses,
+    jsonData,
     onStorageSuccess
 }: IntelligenceSidebarProps) {
     const [isExpanded, setIsExpanded] = useState(true);
@@ -42,8 +78,14 @@ export default function IntelligenceSidebar({
     const { addToast } = useToast();
 
     const handleStoreIntelligently = async () => {
+        console.log('Store Intelligently clicked', { fileId, fileName, jsonData });
         if (!fileId) {
             addToast('error', 'Storage Error', 'File ID not available');
+            return;
+        }
+
+        if (!jsonData) {
+            addToast('error', 'Storage Error', 'JSON data not available');
             return;
         }
 
@@ -52,30 +94,135 @@ export default function IntelligenceSidebar({
         try {
             switch (analysis.classification) {
                 case 'SQL JSON': {
-                    // First create table
+                    // Convert dataTypes (Record<string, string[]>) to schema (Record<string, string>)
+                    const schema: Record<string, string> = {};
+                    Object.entries(analysis.dataTypes || {}).forEach(([field, types]) => {
+                        // Take the first type as the primary type for SQL schema
+                        schema[field] = types[0] || 'string';
+                    });
+
+                    // Derive table name from file name for table creation
+                    const derivedTableName = deriveTableName(fileName || '', fileId);
+
                     const createResponse = await fetch('/api/create-sql-table', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             fileId,
-                            tableName: fileName?.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase() || 'data_table',
-                            schema: analysis.dataTypes || {}
+                            tableName: derivedTableName,
+                            schema
                         })
                     });
 
+                    const createResult = await createResponse.json();
+                    console.log('Create table result:', createResult);
+
+                    let tableCreated = false;
                     if (!createResponse.ok) {
-                        const errorData = await createResponse.json();
-                        if (createResponse.status === 409 && errorData.code === 'SCHEMA_EXISTS') {
-                            // Schema exists, proceed to insert
+                        throw new Error(createResult.error || 'Failed to create table');
+                    }
+
+                    if (createResult.success) {
+                        // Table was created successfully
+                        tableCreated = true;
+                        addToast('success', 'Table Status', 'Table created successfully');
+                    } else if (createResult.code === 'SCHEMA_EXISTS') {
+                        // Schema exists, table should be created
+                        tableCreated = true;
+                        addToast('info', 'Table Status', 'Schema exists — using existing table');
+                    } else if (createResult.code === 'TABLE_EXISTS') {
+                        // Table already exists
+                        tableCreated = true;
+                        addToast('info', 'Table Status', 'Table already exists — inserting rows…');
+                    } else {
+                        throw new Error(createResult.message || 'Failed to create table');
+                    }
+
+                    // Explicitly update metadata after table creation success or TABLE_EXISTS detection
+                    if (tableCreated) {
+                        const updateResponse = await fetch('/api/file-metadata', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                fileId,
+                                updates: {
+                                    storage_type: 'SQL',
+                                    table_name: derivedTableName
+                                }
+                            })
+                        });
+
+                        if (!updateResponse.ok) {
+                            const errorData = await updateResponse.json();
+                            console.error('Metadata update failed:', errorData);
+                            // Don't throw here, continue with the flow
                         } else {
-                            throw new Error(errorData.error || 'Failed to create table');
+                            console.log('Metadata updated successfully after table creation/detection');
                         }
                     }
 
-                    // Then insert rows - need to get the data somehow
-                    // For now, we'll assume the data is available in the component
-                    // This would need to be passed as a prop or fetched
-                    addToast('success', 'Storage Complete', `Table created successfully`);
+                    // Fetch fresh metadata for verification and to get the correct table name
+                    const metadataResponse = await fetch(`/api/file-metadata?fileId=${fileId}`);
+                    if (!metadataResponse.ok) {
+                        const errorData = await metadataResponse.json();
+                        throw new Error(errorData.error || 'Failed to fetch file metadata');
+                    }
+
+                    const metadataResult = await metadataResponse.json();
+                    console.log('Fresh metadata after update:', metadataResult.metadata);
+                    const tableName = metadataResult.metadata.table_name;
+
+                    if (!tableName) {
+                        throw new Error('Table name not found in metadata');
+                    }
+
+                    console.log('Using table name from metadata:', tableName);
+
+                    // Insert rows if table exists/created and we have data
+                    if (tableCreated && jsonData) {
+                        // Prepare records for insertion
+                        const records = Array.isArray(jsonData) ? jsonData : [jsonData];
+                        console.log('Inserting records:', { fileId, tableName, recordsCount: records.length });
+
+                        // Check if records array is empty
+                        if (records.length === 0) {
+                            throw new Error('No data to insert');
+                        }
+
+                        console.log('About to call insert API with:', {
+                            fileId,
+                            tableName,
+                            records: records.slice(0, 3), // Log first 3 records
+                            recordsType: typeof records,
+                            recordsIsArray: Array.isArray(records),
+                            recordsLength: records.length
+                        });
+
+                        console.log('Insert payload:', { fileId, tableName, records });
+
+                        const insertResponse = await fetch('/api/insert-sql-rows', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                fileId,
+                                tableName,
+                                records
+                            })
+                        });
+
+                        console.log('Insert API response status:', insertResponse.status);
+
+                        if (!insertResponse.ok) {
+                            const errorData = await insertResponse.json();
+                            console.error('Insert API error:', errorData);
+                            throw new Error(errorData.error || 'Failed to insert rows');
+                        }
+
+                        const insertResult = await insertResponse.json();
+                        console.log('Insert API success result:', insertResult);
+                        addToast('success', 'Storage Complete', 'Stored Successfully');
+                    }
+
                     break;
                 }
 
@@ -208,19 +355,22 @@ export default function IntelligenceSidebar({
                     </Card>
 
                     {/* Store Intelligently Button */}
-                    {fileId && analysis.classification !== 'Malformed JSON' && !isStored && (
-                        <Card className="rounded-lg py-3 px-3">
-                            <CardContent className="pt-0 px-0">
-                                <Button
-                                    onClick={handleStoreIntelligently}
-                                    disabled={isStoring}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                                >
-                                    {isStoring ? 'Storing...' : 'Store Intelligently'}
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    )}
+                    {(() => {
+                        const canStore = fileId && (jsonType ? jsonType !== 'malformed' : analysis.classification !== 'Malformed JSON');
+                        return canStore && !isStored && (
+                            <Card className="rounded-lg py-3 px-3">
+                                <CardContent className="pt-0 px-0">
+                                    <Button
+                                        onClick={handleStoreIntelligently}
+                                        disabled={isStoring}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        {isStoring ? 'Storing…' : 'Store Intelligently'}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        );
+                    })()}
 
                     {/* Final Storage Decision */}
                     <Card className="rounded-lg py-3 px-3">

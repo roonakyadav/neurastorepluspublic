@@ -183,6 +183,8 @@ export default function JSONVisualizer({ data, onClose, fileName, fileId, allFil
                         comparison={comparison || undefined}
                         fileName={fileName}
                         fileId={fileId}
+                        jsonType={analysis.classification.toLowerCase().replace(' json', '')}
+                        jsonData={data}
                         allAnalyses={allFiles ? allFiles.reduce((acc: Record<string, JSONAnalysisResult>, file: any) => {
                             if (file.name !== fileName && file.content) {
                                 try {

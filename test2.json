@@ -1,0 +1,17 @@
+{
+    "user": {
+        "id": 123,
+        "profile": {
+            "name": "John Doe",
+            "email": "john@example.com",
+            "preferences": {
+                "theme": "dark",
+                "notifications": true
+            }
+        },
+        "settings": {
+            "language": "en",
+            "timezone": "UTC"
+        }
+    }
+}
