@@ -1,293 +1,221 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
-interface CreateTableResult {
-    ok: boolean;
-    file_id: string;
-    table_name?: string;
-    inserted_rows?: number;
-    reason?: string;
-}
-
-// Map JSON schema types to SQL types
-function mapTypeToSQL(type: string): string {
-    switch (type) {
+// Map JSON schema types to PostgreSQL types
+function mapJsonTypeToPostgres(jsonType: string): string {
+    switch (jsonType.toLowerCase()) {
         case 'string':
             return 'TEXT';
         case 'number':
             return 'NUMERIC';
         case 'boolean':
             return 'BOOLEAN';
-        case 'object':
-            return 'JSONB'; // Store nested objects as JSONB
-        case 'array':
-            return 'JSONB'; // Store arrays as JSONB
         case 'null':
-            return 'TEXT'; // Allow null values
+            return 'TEXT'; // fallback for null values
         default:
-            return 'TEXT';
+            return 'TEXT'; // fallback for unknown types
     }
 }
 
-// Generate CREATE TABLE SQL from schema
-function generateCreateTableSQL(tableName: string, schema: any): string {
+// Validate table name (snake_case only)
+function isValidTableName(tableName: string): boolean {
+    // Only allow lowercase letters, numbers, and underscores
+    // Must start with letter or underscore
+    const snakeCaseRegex = /^[a-z_][a-z0-9_]*$/;
+    return snakeCaseRegex.test(tableName) && tableName.length <= 63; // PostgreSQL limit
+}
+
+// Generate CREATE TABLE SQL
+function generateCreateTableSQL(tableName: string, schema: Record<string, string>): string {
     const columns: string[] = [];
 
-    // Add an auto-incrementing ID column
-    columns.push('id SERIAL PRIMARY KEY');
+    // Add primary key
+    columns.push('id UUID PRIMARY KEY DEFAULT gen_random_uuid()');
 
-    // Add columns based on schema properties
-    if (schema.properties) {
-        for (const [fieldName, fieldSchema] of Object.entries(schema.properties)) {
-            const schemaField = fieldSchema as any;
-            const sqlType = mapTypeToSQL(schemaField.type);
-            const nullable = schemaField.required ? 'NOT NULL' : '';
-            columns.push(`${fieldName} ${sqlType} ${nullable}`.trim());
-        }
+    // Add file_id reference
+    columns.push(`file_id UUID NOT NULL REFERENCES files_metadata(id)`);
+
+    // Add schema columns
+    for (const [fieldName, jsonType] of Object.entries(schema)) {
+        const postgresType = mapJsonTypeToPostgres(jsonType);
+        columns.push(`${fieldName} ${postgresType}`);
     }
 
     // Add timestamps
     columns.push('created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()');
     columns.push('updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()');
 
-    const createTableSQL = `
-        CREATE TABLE IF NOT EXISTS ${tableName} (
-            ${columns.join(',\n            ')}
-        );
-    `;
-
-    return createTableSQL;
+    return `CREATE TABLE ${tableName} (
+    ${columns.join(',\n    ')}
+);`;
 }
 
-// Generate INSERT SQL from data and schema
-function generateInsertSQL(tableName: string, data: any, schema: any): { sql: string; values: any[] } {
-    const columns: string[] = [];
-    const placeholders: string[] = [];
-    const values: any[] = [];
-
-    // Skip the id column (auto-generated)
-    let paramIndex = 1;
-
-    if (schema.properties) {
-        for (const [fieldName, fieldSchema] of Object.entries(schema.properties)) {
-            if (data.hasOwnProperty(fieldName)) {
-                columns.push(fieldName);
-                placeholders.push(`$${paramIndex}`);
-                values.push(data[fieldName]);
-                paramIndex++;
-            }
-        }
-    }
-
-    // Add timestamps
-    columns.push('created_at', 'updated_at');
-    placeholders.push(`$${paramIndex}`, `$${paramIndex + 1}`);
-    values.push(new Date().toISOString(), new Date().toISOString());
-
-    const insertSQL = `
-        INSERT INTO ${tableName} (${columns.join(', ')})
-        VALUES (${placeholders.join(', ')})
-        RETURNING id;
-    `;
-
-    return { sql: insertSQL, values };
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
     try {
-        const { file_id } = await req.json();
+        const { fileId, tableName, schema } = await request.json();
 
-        if (!file_id) {
+        // Validate required fields
+        if (!fileId) {
             return NextResponse.json(
-                { error: 'Missing file_id' },
+                { error: 'fileId is required', code: 'MISSING_FILE_ID' },
                 { status: 400 }
             );
         }
 
-        // Fetch schema and storage type from json_schemas table
+        if (!tableName) {
+            return NextResponse.json(
+                { error: 'tableName is required', code: 'MISSING_TABLE_NAME' },
+                { status: 400 }
+            );
+        }
+
+        if (!schema || typeof schema !== 'object') {
+            return NextResponse.json(
+                { error: 'schema must be a valid object', code: 'INVALID_SCHEMA' },
+                { status: 400 }
+            );
+        }
+
+        // Validate table name format
+        if (!isValidTableName(tableName)) {
+            return NextResponse.json(
+                {
+                    error: 'tableName must be in snake_case format (lowercase letters, numbers, underscores only, max 63 chars)',
+                    code: 'INVALID_TABLE_NAME'
+                },
+                { status: 400 }
+            );
+        }
+
+        // Validate file exists
+        const { data: fileRecord, error: fileError } = await supabase
+            .from('files_metadata')
+            .select('id, name')
+            .eq('id', fileId)
+            .single();
+
+        if (fileError || !fileRecord) {
+            return NextResponse.json(
+                { error: 'File not found', code: 'FILE_NOT_FOUND' },
+                { status: 404 }
+            );
+        }
+
+        // Check if schema already exists for this file
+        const { data: existingSchema, error: schemaCheckError } = await supabase
+            .from('json_schemas')
+            .select('id')
+            .eq('file_id', fileId)
+            .single();
+
+        if (existingSchema && !schemaCheckError) {
+            return NextResponse.json({
+                success: false,
+                message: `Schema already exists for this file. Use insert-sql-rows to add data.`,
+                tableName,
+                schemaId: existingSchema.id,
+                code: 'SCHEMA_EXISTS'
+            });
+        }
+
+        // Check if table already exists
+        try {
+            const { error: checkError } = await supabase
+                .from(tableName)
+                .select('id')
+                .limit(1);
+
+            // If no error, table exists
+            if (!checkError) {
+                return NextResponse.json({
+                    success: false,
+                    message: `Table '${tableName}' already exists`,
+                    tableName,
+                    code: 'TABLE_EXISTS'
+                });
+            }
+        } catch {
+            // Table doesn't exist, continue with creation
+        }
+
+        // Generate CREATE TABLE SQL
+        const createTableSQL = generateCreateTableSQL(tableName, schema);
+
+        // Execute table creation using Supabase RPC
+        const { error: createError } = await supabase.rpc('execute_sql', {
+            sql_query: createTableSQL
+        });
+
+        if (createError) {
+            console.error('Table creation error:', createError);
+            return NextResponse.json(
+                {
+                    error: 'Failed to create table',
+                    details: createError.message,
+                    code: 'TABLE_CREATION_FAILED'
+                },
+                { status: 500 }
+            );
+        }
+
+        // Save schema in json_schemas table
         const { data: schemaRecord, error: schemaError } = await supabase
             .from('json_schemas')
-            .select('schema, storage_type')
-            .eq('file_id', file_id)
+            .insert({
+                file_id: fileId,
+                schema: schema,
+                storage_type: 'SQL'
+            })
+            .select('id')
             .single();
 
         if (schemaError) {
-            return NextResponse.json({
-                ok: false,
-                file_id,
-                reason: 'Schema not found for this file'
-            } as CreateTableResult);
-        }
-
-        // Check if it's SQL type
-        if (schemaRecord.storage_type !== 'SQL') {
-            return NextResponse.json({
-                ok: false,
-                file_id,
-                reason: 'File is not classified as SQL type'
-            } as CreateTableResult);
-        }
-
-        // Generate table name
-        const tableName = `data_${file_id.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8)}`;
-
-        // Generate CREATE TABLE SQL
-        const createTableSQL = generateCreateTableSQL(tableName, schemaRecord.schema);
-
-
-        // Execute CREATE TABLE using Supabase's SQL API
-        // Note: This requires the sql function to be available in Supabase
-        try {
-            const { error: createError } = await supabase.rpc('exec_sql', {
-                sql: createTableSQL
-            });
-
-            if (createError) {
-
-                // Try alternative approach using direct table creation
-                // This is a fallback for when rpc is not available
-                try {
-                    // Check if table exists by trying to select from it
-                    const { error: checkError } = await supabase
-                        .from(tableName)
-                        .select('id')
-                        .limit(1);
-
-                    if (checkError && !checkError.message.includes('relation') && !checkError.message.includes('does not exist')) {
-                        throw createError; // Re-throw if it's a different error
-                    }
-                } catch (checkError) {
-                }
-            }
-        } catch (createError: any) {
-            // Continue anyway - table might already exist
-        }
-
-        // Fetch the original JSON data from Supabase storage
-        const { data: fileRecord, error: fileError } = await supabase
-            .from('files_metadata')
-            .select('public_url')
-            .eq('id', file_id)
-            .single();
-
-        if (fileError) {
-            console.error('File record not found:', fileError);
-            return NextResponse.json({
-                ok: false,
-                file_id,
-                reason: 'File record not found'
-            } as CreateTableResult);
-        }
-
-        // Download and parse the JSON data
-        let jsonData: any;
-        try {
-            if (fileRecord.public_url.includes('supabase')) {
-                const urlParts = fileRecord.public_url.split('/storage/v1/object/public/');
-                if (urlParts.length > 1) {
-                    const path = urlParts[1].split('/').slice(1).join('/');
-                    const { data: fileData, error: downloadError } = await supabase.storage
-                        .from('media')
-                        .download(path);
-
-                    if (downloadError) throw downloadError;
-
-                    const text = await fileData.text();
-                    jsonData = JSON.parse(text);
-                }
-            } else {
-                const response = await fetch(fileRecord.public_url);
-                if (!response.ok) throw new Error('Failed to fetch file');
-                const text = await response.text();
-                jsonData = JSON.parse(text);
-            }
-        } catch (parseError) {
-            console.error('Failed to parse JSON data:', parseError);
-            return NextResponse.json({
-                ok: false,
-                file_id,
-                reason: 'Failed to parse JSON data'
-            } as CreateTableResult);
-        }
-
-        // Generate INSERT SQL
-        const { sql: insertSQL, values } = generateInsertSQL(tableName, jsonData, schemaRecord.schema);
-
-
-        // Execute INSERT using Supabase client
-        // Since we can't use raw SQL easily, we'll try to insert using the client
-        try {
-            const insertData: any = {};
-
-            // Map JSON data to table columns
-            if (schemaRecord.schema.properties) {
-                for (const [fieldName, fieldSchema] of Object.entries(schemaRecord.schema.properties)) {
-                    if (jsonData.hasOwnProperty(fieldName)) {
-                        insertData[fieldName] = jsonData[fieldName];
-                    }
-                }
+            console.error('Schema save error:', schemaError);
+            // Try to drop the created table since schema save failed
+            try {
+                await supabase.rpc('execute_sql', {
+                    sql_query: `DROP TABLE IF EXISTS ${tableName};`
+                });
+            } catch (dropError) {
+                console.error('Failed to drop table after schema error:', dropError);
             }
 
-            // Add timestamps
-            insertData.created_at = new Date().toISOString();
-            insertData.updated_at = new Date().toISOString();
-
-            const { data: insertResult, error: insertError } = await supabase
-                .from(tableName)
-                .insert(insertData)
-                .select('id')
-                .single();
-
-            if (insertError) {
-                console.error('Data insertion failed:', insertError);
-                return NextResponse.json({
-                    ok: false,
-                    file_id,
-                    table_name: tableName,
-                    reason: `Data insertion failed: ${insertError.message}`
-                } as CreateTableResult);
-            }
-
-
-        } catch (insertError: any) {
-            console.error('Data insertion failed:', insertError.message);
-            return NextResponse.json({
-                ok: false,
-                file_id,
-                table_name: tableName,
-                reason: `Data insertion failed: ${insertError.message}`
-            } as CreateTableResult);
+            return NextResponse.json(
+                {
+                    error: 'Table created but failed to save schema',
+                    code: 'SCHEMA_SAVE_FAILED'
+                },
+                { status: 500 }
+            );
         }
 
         // Update files_metadata with table info
-        try {
-            const { error: updateError } = await supabase
-                .from('files_metadata')
-                .update({
-                    table_name: tableName,
-                    record_count: 1,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', file_id);
+        const { error: updateError } = await supabase
+            .from('files_metadata')
+            .update({
+                table_name: tableName,
+                storage_type: 'SQL',
+                schema_id: schemaRecord.id
+            })
+            .eq('id', fileId);
 
-            if (updateError) {
-            }
-        } catch (updateError: any) {
+        if (updateError) {
+            console.error('Metadata update error:', updateError);
+            // Don't fail the request, just log the error
         }
 
-        const result: CreateTableResult = {
-            ok: true,
-            file_id,
-            table_name: tableName,
-            inserted_rows: 1
-        };
+        return NextResponse.json({
+            success: true,
+            message: 'SQL table created successfully',
+            tableName,
+            schemaId: schemaRecord.id,
+            fileId
+        });
 
-        return NextResponse.json(result);
-
-    } catch (error: any) {
-        console.error('Create table error:', error);
+    } catch (error: unknown) {
+        console.error('Create SQL table API error:', error);
         return NextResponse.json(
-            { error: 'Internal server error' },
+            { error: 'Internal server error', code: 'INTERNAL_ERROR' },
             { status: 500 }
         );
     }
