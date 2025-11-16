@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { getSupabaseClient, getSupabaseAdminClient } from '@/lib/supabaseClient';
 
 // Map JSON schema types to PostgreSQL types
 function mapJsonTypeToPostgres(jsonType: string): string {
@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate file exists
+        const supabase = getSupabaseClient();
         const { data: fileRecord, error: fileError } = await supabase
             .from('files_metadata')
             .select('id, name')
@@ -147,6 +148,7 @@ export async function POST(request: NextRequest) {
             // Table exists - ensure schema is saved if it doesn't exist
             if (!schemaExists) {
                 // Save schema in json_schemas table
+                const supabaseAdmin = getSupabaseAdminClient();
                 if (!supabaseAdmin) {
                     console.error('supabaseAdmin not available for schema insert');
                     return NextResponse.json(
@@ -178,18 +180,14 @@ export async function POST(request: NextRequest) {
             }
 
             // Update files_metadata with table info for existing table
-            const metadataUpdate: any = {
-                table_name: tableName,
-                storage_type: 'SQL',
-                json_type: 'sql'
-            };
-            if (schemaId) {
-                metadataUpdate.schema_id = schemaId;
-            }
-
             const { error: updateError } = await supabase
                 .from('files_metadata')
-                .update(metadataUpdate)
+                .update({
+                    table_name: tableName,
+                    storage_type: 'SQL',
+                    json_type: 'sql',
+                    schema_id: schemaId
+                })
                 .eq('id', fileId);
 
             if (updateError) {
