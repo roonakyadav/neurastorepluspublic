@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
             .eq('file_id', fileId)
             .single();
 
-        let schemaId = existingSchema?.id;
+        let schemaId = (existingSchema as any)?.id;
         let schemaExists = !schemaCheckError && existingSchema;
 
         if (schemaExists) {
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
                         { status: 500 }
                     );
                 }
-                schemaId = schemaRecord.id;
+                schemaId = (schemaRecord as any).id;
             }
 
             // Update files_metadata with table info for existing table
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
                 table_name: tableName,
                 storage_type: 'SQL',
                 json_type: 'sql',
-                schema_id: schemaRecord.id
+                schema_id: (schemaRecord as any).id
             })
             .eq('id', fileId);
 
@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
             success: true,
             message: 'SQL table created successfully',
             tableName,
-            schemaId: schemaRecord.id,
+            schemaId: (schemaRecord as any).id,
             fileId
         });
 
