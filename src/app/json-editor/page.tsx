@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
+import { animatePageContainer, animateButtons } from "@/utils/animations";
 
 export default function JSONEditorPage() {
     const [jsonText, setJsonText] = useState("");
@@ -11,6 +12,11 @@ export default function JSONEditorPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const router = useRouter();
     const { addToast } = useToast();
+
+    useEffect(() => {
+        animatePageContainer('div.p-6.space-y-6');
+        animateButtons('button');
+    }, []);
 
     const validateJSON = (text: string) => {
         if (!text.trim()) {

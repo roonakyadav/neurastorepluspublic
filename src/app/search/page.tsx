@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { animatePageContainer, animateListItems, animateButtons } from "@/utils/animations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,11 @@ export default function SearchPage() {
         fetchAllFiles();
         performSearch();
     }, [query, selectedFilter]);
+
+    useEffect(() => {
+        animatePageContainer('div.space-y-6');
+        animateButtons('button');
+    }, []);
 
     // Fetch all files for the full tree explorer
     const fetchAllFiles = async () => {
@@ -174,7 +180,7 @@ export default function SearchPage() {
     // Analyze JSON files when results change
     useEffect(() => {
         const analyzeJSONFiles = async () => {
-            const jsonFiles = results.filter(file => file.mime_type === 'application/json');
+            const jsonFiles = results.filter(file => file.mime_type === 'application/json' && file.public_url);
             const analyses: Record<string, JSONAnalysisResult> = {};
 
             for (const file of jsonFiles) {

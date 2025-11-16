@@ -8,11 +8,26 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Server-side Admin Supabase (bypasses RLS)
 // NEVER import this in client components
-export const supabaseAdmin = process.env.SUPABASE_SERVICE_KEY
-    ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_KEY, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    })
-    : null;
+export const supabaseAdmin = (() => {
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+    console.log('Initializing supabaseAdmin - SUPABASE_SERVICE_KEY available:', !!serviceKey, 'URL available:', !!supabaseUrl);
+
+    if (!serviceKey || !supabaseUrl) {
+        console.error('supabaseAdmin initialization failed: SUPABASE_SERVICE_KEY or NEXT_PUBLIC_SUPABASE_URL not available');
+        return null;
+    }
+
+    try {
+        const client = createClient(supabaseUrl, serviceKey, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        });
+        console.log('supabaseAdmin initialized successfully');
+        return client;
+    } catch (error) {
+        console.error('Error creating supabaseAdmin client:', error);
+        return null;
+    }
+})();

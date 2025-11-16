@@ -71,104 +71,20 @@ export async function POST(request: NextRequest) {
                 throw new Error('No data to process');
             }
 
-            // Check if data is suitable for SQL storage
-            const firstItem = dataToProcess[0];
-            const isSQLSuitable = typeof firstItem === 'object' &&
-                firstItem !== null &&
-                !Array.isArray(firstItem) &&
-                Object.keys(firstItem).length > 0;
+            // Store as NoSQL/raw JSON for now (SQL table creation issues)
+            console.log('Storing manual JSON as NoSQL (table creation temporarily disabled)');
 
-            if (!isSQLSuitable) {
-                // Store as NoSQL/raw JSON
-                await supabase
-                    .from('files_metadata')
-                    .update({
-                        storage_type: 'NoSQL',
-                        record_count: dataToProcess.length,
-                        json_type: 'nosql',
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', fileId);
+            await supabase
+                .from('files_metadata')
+                .update({
+                    storage_type: 'NoSQL',
+                    record_count: dataToProcess.length,
+                    json_type: isArray ? 'sql' : 'nosql', // Preserve type info for analysis
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', fileId);
 
-                console.log('Stored as NoSQL data');
-            } else {
-                // Create table and insert data using existing APIs
-                const tableName = `data_manual_${fileId.replace(/-/g, '_')}`;
-
-                // Infer schema from first item
-                const schema: Record<string, string> = {};
-                for (const [key, value] of Object.entries(firstItem)) {
-                    if (key === 'id') continue; // Skip id as it's auto-generated
-                    schema[key] = typeof value;
-                }
-
-                console.log('Creating table with schema:', schema);
-
-                // Create the table
-                const createResponse = await fetch(`${request.nextUrl.origin}/api/create-sql-table`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        fileId,
-                        tableName,
-                        schema
-                    }),
-                });
-
-                const createResult = await createResponse.json();
-
-                if (!createResponse.ok && createResult.code !== 'TABLE_EXISTS') {
-                    throw new Error(`Failed to create table: ${createResult.error}`);
-                }
-
-                console.log('Table creation result:', createResult);
-
-                // Update metadata to ensure it's linked to the table
-                // This is needed regardless of whether table was created or already existed
-                if (!supabaseAdmin) {
-                    throw new Error('Admin client not available for metadata update');
-                }
-                const { error: metadataError } = await supabaseAdmin
-                    .from('files_metadata')
-                    .update({
-                        table_name: tableName,
-                        storage_type: 'SQL',
-                        json_type: 'sql',
-                        record_count: 0, // Will be updated after insert
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', fileId);
-
-                if (metadataError) {
-                    console.error('Metadata update error:', metadataError);
-                    throw new Error(`Failed to update metadata: ${metadataError.message}`);
-                }
-
-                console.log('Metadata updated successfully for fileId:', fileId, 'tableName:', tableName);
-
-                // Insert the data
-                const insertResponse = await fetch(`${request.nextUrl.origin}/api/insert-sql-rows`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        fileId,
-                        tableName,
-                        records: dataToProcess
-                    }),
-                });
-
-                const insertResult = await insertResponse.json();
-
-                if (!insertResponse.ok) {
-                    throw new Error(`Failed to insert data: ${insertResult.error}`);
-                }
-
-                console.log('Data insertion result:', insertResult);
-            }
+            console.log('Stored as NoSQL data successfully');
 
         } catch (processingError) {
             console.error('JSON processing error:', processingError);

@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { MainLayout } from "@/components/MainLayout";
 import "./globals.css";
 import { ClientProviders } from "@/components/ClientProviders";
+import Script from "next/script";
 
 
 const geistSans = Geist({
@@ -32,6 +33,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
+        <Script
+          src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"
+          strategy="beforeInteractive"
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

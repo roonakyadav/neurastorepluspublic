@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { animatePageContainer, animateListItems, animateButtons } from "@/utils/animations";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -48,6 +49,12 @@ export default function UploadPage() {
     const [folderName, setFolderName] = useState<string>('');
     const [showAnalysis, setShowAnalysis] = useState(false);
     const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        animatePageContainer('div.space-y-6');
+        animateListItems('tbody tr');
+        animateButtons('button');
+    }, []);
 
     const handleFileSelect = useCallback((files: FileList | null) => {
         if (!files) return;

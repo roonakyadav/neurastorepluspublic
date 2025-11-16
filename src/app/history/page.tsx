@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { animatePageContainer, animateListItems, animateButtons } from "@/utils/animations";
 import dynamic from "next/dynamic";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,9 @@ export default function HistoryPage() {
 
     useEffect(() => {
         fetchFiles();
+        animatePageContainer('div.space-y-6');
+        animateListItems('.grid.gap-4 > div');
+        animateButtons('button');
     }, []);
 
     // Listen for history clear events

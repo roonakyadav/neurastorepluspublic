@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/components/ui/toast";
 import { useTranslation } from "react-i18next";
+import { animatePageContainer, animateButtons } from "@/utils/animations";
 
 export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
@@ -35,6 +36,10 @@ export default function SettingsPage() {
         const savedLanguage = localStorage.getItem('neurastore-language') || 'en';
         i18n.changeLanguage(savedLanguage);
         setSettings(prev => ({ ...prev, language: savedLanguage }));
+
+        // Animate elements
+        animatePageContainer('div.space-y-6');
+        animateButtons('button');
     }, [i18n]);
 
     const updateSetting = (key: string, value: any) => {
