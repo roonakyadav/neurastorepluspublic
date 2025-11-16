@@ -13,10 +13,32 @@ function DashboardContent() {
 
     const fileId = searchParams.get('fileId');
 
-    // Simple data for testing charts
+    // Realistic test data matching DashboardCharts interface
     const testFiles = [
-        { id: 1, name: "test1.json", category: "Data", storage_type: "json", record_count: 100 },
-        { id: 2, name: "test2.json", category: "API", storage_type: "json", record_count: 50 }
+        {
+            id: 1,
+            name: "test1.json",
+            category: "Data",
+            storage_type: "json",
+            record_count: 100,
+            uploaded_at: new Date().toISOString(),
+            ai_tags: ["test", "data"],
+            public_url: "#",
+            mime_type: "application/json",
+            size: 1024
+        },
+        {
+            id: 2,
+            name: "test2.json",
+            category: "API",
+            storage_type: "json",
+            record_count: 50,
+            uploaded_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+            ai_tags: ["api", "test"],
+            public_url: "#",
+            mime_type: "application/json",
+            size: 512
+        }
     ];
 
     const handleAnalyzeJSON = (file: any) => {
