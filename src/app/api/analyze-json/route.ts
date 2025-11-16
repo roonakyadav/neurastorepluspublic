@@ -181,16 +181,16 @@ export async function POST(req: NextRequest) {
             const result: AnalysisResult = {
                 ok: true,
                 file_id,
-                storage_type: existingSchema.storage_type,
-                schema_id: existingSchema.id,
-                schema: existingSchema.schema.properties || {},
+                storage_type: (existingSchema as any).storage_type,
+                schema_id: (existingSchema as any).id,
+                schema: (existingSchema as any).schema.properties || {},
                 reasoning: 'Schema already exists'
             };
             return NextResponse.json(result);
         }
 
         // Insert new schema using upsert for idempotency
-        const { data: schemaRecord, error: schemaError } = await supabase
+        const { data: schemaRecord, error: schemaError } = await (supabase as any)
             .from('json_schemas')
             .upsert({
                 file_id,
