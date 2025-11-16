@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
                 }
             }
 
-            const { error: updateError } = await supabase
+            const { error: updateError } = await (supabase as any)
                 .from('files_metadata')
                 .update(updateData)
                 .eq('id', file_id);
