@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
-import DashboardCharts from "../../components/DashboardCharts";
-import JSONVisualizer from "../../components/JSONVisualizer";
-import { Button } from "../../components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
+import DashboardCharts from "@/components/DashboardCharts";
+import JSONVisualizer from "@/components/JSONVisualizer";
+import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
-import { animatePageContainer, animateListItems, animateButtons } from "../../utils/animations";
+import { animatePageContainer, animateListItems, animateButtons } from "@/utils/animations";
 
 function DashboardContent() {
     const searchParams = useSearchParams();
