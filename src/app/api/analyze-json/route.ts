@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabaseClient } from '@/lib/supabaseClient';
 
 interface SchemaField {
     type: string;
@@ -128,6 +128,7 @@ function inferSchema(data: any, path: string[] = []): SchemaField {
 
 export async function POST(req: NextRequest) {
     try {
+        const supabase = getSupabaseClient();
         const { file_id, content } = await req.json();
 
         if (!file_id || !content) {
