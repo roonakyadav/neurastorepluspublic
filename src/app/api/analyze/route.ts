@@ -212,7 +212,8 @@ export async function POST(req: Request) {
 
         // Save tags to database
         if (fileId && tags.length > 0) {
-            await (supabase as any).from("files_metadata")
+            await (supabase as any)
+                .from("files_metadata")
                 .update({ ai_tags: tags })
                 .eq("id", fileId);
         }
