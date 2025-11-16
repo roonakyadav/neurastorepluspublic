@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export async function POST(req: Request) {
+    const supabase = getSupabaseClient();
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const fileId = formData.get("fileId") as string;
@@ -211,7 +212,7 @@ export async function POST(req: Request) {
 
         // Save tags to database
         if (fileId && tags.length > 0) {
-            await supabase.from("files_metadata")
+            await (supabase as any).from("files_metadata")
                 .update({ ai_tags: tags })
                 .eq("id", fileId);
         }
