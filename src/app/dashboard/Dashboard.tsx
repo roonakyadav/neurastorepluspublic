@@ -1,13 +1,38 @@
 "use client";
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+// Add DashboardCharts next to test if it causes issues
+import DashboardCharts from "@/components/DashboardCharts";
 
 function DashboardContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Simple test to verify useSearchParams works
     const fileId = searchParams.get('fileId');
+
+    // Simple data for testing charts
+    const testFiles = [
+        { id: 1, name: "test1.json", category: "Data", storage_type: "json", record_count: 100 },
+        { id: 2, name: "test2.json", category: "API", storage_type: "json", record_count: 50 }
+    ];
+
+    const handleAnalyzeJSON = (file: any) => {
+        console.log("Analyzing file:", file);
+    };
+
+    useEffect(() => {
+        // Simulate loading
+        setLoading(true);
+        setTimeout(() => {
+            setLoading(false);
+        }, 1000);
+    }, []);
+
+    if (loading) return <p className="text-gray-400 text-center mt-10">Loading dashboard data...</p>;
+    if (error) return <p className="text-red-400 text-center mt-10">Error: {error}</p>;
 
     return (
         <div className="p-6 space-y-8">
@@ -18,8 +43,11 @@ function DashboardContent() {
                 </Button>
             </div>
             <div className="text-white">
-                <p>Dashboard working! File ID from search params: {fileId || 'None'}</p>
+                <p>✅ useSearchParams working! File ID: {fileId || 'None'}</p>
             </div>
+
+            {/* Test charts */}
+            <DashboardCharts files={testFiles} onAnalyzeJSON={handleAnalyzeJSON} />
         </div>
     );
 }
